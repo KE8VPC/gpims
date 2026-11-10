@@ -185,7 +185,7 @@ Expiry
 - Each lot has a Discard button: takes its quantity out of stock (logged, and undoable) and removes the entry.
 - Email reminders: one email per person at 3 stages per lot (inside the warning window, within 7 days, expired). Turn on "Items that are about to expire or have expired" under My account > email. Admins with stock alerts on who never chose preferences get them by default. Needs email set up and the cron address (Settings) or normal site traffic.
 Quick add (Add item)
-- Scan a barcode, or pick/take a photo of one, and the name, brand/size, a category suggestion and a product photo are filled in from free public databases (Open Food Facts, Open Products Facts, UPCitemdb). Only the barcode number is sent. Results are cached. Turn it off in Settings. It needs your host to allow outgoing HTTPS (curl or allow_url_fopen); if it cannot reach them you simply type the details.
+- Scan a barcode, or pick/take a photo of one, and the name, brand/size, a category suggestion and a product photo are filled in from free public databases that need no key: Open Food Facts, Open Products Facts, Open Beauty Facts, Open Pet Food Facts, Open Library (books, by ISBN) and UPCitemdb's free trial. Anything entered on an item is remembered for next time ("Your inventory"). Only the barcode number is sent. Results are cached. Turn it off in Settings. It needs your host to allow outgoing HTTPS (curl or allow_url_fopen); if it cannot reach them you simply type the details.
 - "Take a photo of the item" attaches photos when you save.
 Backup and restore (Admin > Backup)
 - Download everything (zip: database + photos/documents) or the database only.

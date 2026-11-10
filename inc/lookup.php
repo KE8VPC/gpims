@@ -2,6 +2,7 @@
 // Barcode lookup for quick-add: asks free public product databases (Open Food Facts, Open Products Facts, UPCitemdb) by code only.
 function lookup_enabled(){ return setting('lookup_enabled', '1') === '1'; }
 function lookup_http($url, $max = 2000000){
+  if (!empty($GLOBALS['LOOKUP_HTTP_MOCK'])) return $GLOBALS['LOOKUP_HTTP_MOCK']($url);   // used by the automated tests only
   $ua = 'GPIMS-inventory/'.APP_VERSION;
   if (function_exists('curl_init')) {
     $c = curl_init($url); curl_setopt_array($c, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 6, CURLOPT_CONNECTTIMEOUT => 4, CURLOPT_FOLLOWLOCATION => false, CURLOPT_USERAGENT => $ua, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_MAXFILESIZE => $max, CURLOPT_HTTPHEADER => ['Accept: application/json,image/*']]);
@@ -12,20 +13,37 @@ function lookup_http($url, $max = 2000000){
   return ($r !== false && strlen($r) <= $max) ? $r : null;
 }
 function lookup_save_image($url){
-  $h = parse_url($url, PHP_URL_HOST); if (!$h || parse_url($url, PHP_URL_SCHEME) !== 'https' || !preg_match('/(^|\.)(openfoodfacts|openproductsfacts|openbeautyfacts)\.org$/i', $h)) return null;
+  $h = parse_url($url, PHP_URL_HOST); if (!$h || parse_url($url, PHP_URL_SCHEME) !== 'https' || !preg_match('/(^|\.)(openfoodfacts|openproductsfacts|openbeautyfacts|openpetfoodfacts)\.org$/i', $h)) return null;
   $data = lookup_http($url, 3000000); if (!$data) return null; $tmp = tempnam(sys_get_temp_dir(), 'gpl'); file_put_contents($tmp, $data);
   $dir = dirname(__DIR__).'/uploads'; if (!is_dir($dir)) @mkdir($dir, 0755); $n = save_photo($tmp, $dir); @unlink($tmp); return $n;
 }
 function lookup_clean($s, $n){ return mb_substr(trim(preg_replace('/\s+/', ' ', strip_tags((string)$s))), 0, $n); }
 function lookup_fetch($code){
-  foreach (['world.openfoodfacts.org', 'world.openproductsfacts.org'] as $host) {
+  $t0 = microtime(true); $over = fn() => microtime(true) - $t0 > 14;   // give up on slow networks instead of making the person wait
+  // Books: the barcode is the ISBN
+  if (preg_match('/^97[89]\d{10}$/', $code)) {
+    $j = json_decode((string)lookup_http('https://openlibrary.org/api/books?bibkeys=ISBN:'.$code.'&format=json&jscmd=data'), true); $b = $j['ISBN:'.$code] ?? null;
+    if ($b && lookup_clean($b['title'] ?? '', 200) !== '') { $nm = lookup_clean($b['title'].(!empty($b['subtitle']) ? ': '.$b['subtitle'] : ''), 200);
+      return ['name' => $nm, 'brand' => lookup_clean($b['authors'][0]['name'] ?? '', 120), 'size' => lookup_clean(($b['publishers'][0]['name'] ?? '').(!empty($b['number_of_pages']) ? ' · '.(int)$b['number_of_pages'].' pages' : ''), 80), 'category' => 'Books', 'image_url' => '', 'source' => 'Open Library']; }
+  }
+  // Open Food / Products / Beauty / Pet Food Facts: free, same format, no key
+  foreach (['world.openfoodfacts.org' => 'Open Food Facts', 'world.openproductsfacts.org' => 'Open Products Facts', 'world.openbeautyfacts.org' => 'Open Beauty Facts', 'world.openpetfoodfacts.org' => 'Open Pet Food Facts'] as $host => $label) {
+    if ($over()) break;
     $j = json_decode((string)lookup_http("https://$host/api/v2/product/".rawurlencode($code).".json?fields=product_name,generic_name,brands,quantity,categories,image_front_url"), true);
     $p = $j['product'] ?? null; $nm = lookup_clean($p['product_name'] ?? ($p['generic_name'] ?? ''), 200);
-    if (($j['status'] ?? 0) == 1 && $nm !== '') return ['name' => $nm, 'brand' => lookup_clean(explode(',', (string)($p['brands'] ?? ''))[0], 120), 'size' => lookup_clean($p['quantity'] ?? '', 80), 'category' => lookup_clean($p['categories'] ?? '', 160), 'image_url' => (string)($p['image_front_url'] ?? ''), 'source' => $host === 'world.openfoodfacts.org' ? 'Open Food Facts' : 'Open Products Facts'];
+    if (($j['status'] ?? 0) == 1 && $nm !== '') return ['name' => $nm, 'brand' => lookup_clean(explode(',', (string)($p['brands'] ?? ''))[0], 120), 'size' => lookup_clean($p['quantity'] ?? '', 80), 'category' => lookup_clean($p['categories'] ?? '', 160), 'image_url' => (string)($p['image_front_url'] ?? ''), 'source' => $label];
   }
-  $j = json_decode((string)lookup_http('https://api.upcitemdb.com/prod/trial/lookup?upc='.rawurlencode($code)), true);
-  $p = $j['items'][0] ?? null; if ($p && lookup_clean($p['title'] ?? '', 200) !== '') return ['name' => lookup_clean($p['title'], 200), 'brand' => lookup_clean($p['brand'] ?? '', 120), 'size' => lookup_clean($p['size'] ?? '', 80), 'category' => lookup_clean($p['category'] ?? '', 160), 'image_url' => '', 'source' => 'UPCitemdb'];
+  if (!$over()) {
+    $j = json_decode((string)lookup_http('https://api.upcitemdb.com/prod/trial/lookup?upc='.rawurlencode($code)), true);
+    $p = $j['items'][0] ?? null; if ($p && lookup_clean($p['title'] ?? '', 200) !== '') return ['name' => lookup_clean($p['title'], 200), 'brand' => lookup_clean($p['brand'] ?? '', 120), 'size' => lookup_clean($p['size'] ?? '', 80), 'category' => lookup_clean($p['category'] ?? '', 160), 'image_url' => '', 'source' => 'UPCitemdb'];
+  }
   return null;
+}
+// Remember what a barcode is once someone has entered it, so it fills in next time (for everyone). Never overwrites a lookup result.
+function lookup_learn($code, $name, $category = ''){
+  $code = preg_replace('/\D/', '', (string)$code); $name = lookup_clean($name, 200); if (!preg_match('/^\d{8,14}$/', $code) || $name === '') return;
+  $r = q("SELECT found,source FROM barcode_cache WHERE code=?", [$code])->fetch(); if ($r && $r['found'] && $r['source'] !== 'Your inventory') return;
+  q("REPLACE INTO barcode_cache(code,found,name,brand,size,category,image,source,looked_up_at) VALUES(?,1,?,NULL,NULL,?,NULL,?,NOW())", [$code, $name, lookup_clean($category, 160) ?: null, 'Your inventory']);
 }
 // Look a code up (cached). Returns ['found'=>bool, ...]. Misses are cached for a week, hits for good.
 function lookup_code($code){

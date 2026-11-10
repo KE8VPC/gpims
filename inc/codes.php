@@ -50,6 +50,7 @@ function code_in_use($code, $except = 0){
 function sync_item_codes($itemId, $codes){
   q("DELETE FROM item_codes WHERE item_id=?", [$itemId]);
   foreach ($codes as $c) q("INSERT INTO item_codes(item_id,code,code_type,is_primary) VALUES(?,?,?,?)", [$itemId, $c['code'], $c['type'], $c['primary'] ? 1 : 0]);
+  try { $it = q("SELECT i.name,c.name cat FROM items i LEFT JOIN categories c ON c.id=i.category_id WHERE i.id=?", [$itemId])->fetch(); if ($it) foreach ($codes as $c) lookup_learn($c['code'], $it['name'], (string)$it['cat']); } catch (Throwable $e) {}
 }
 function codes_summary($rows){
   $o = []; foreach ($rows as $r) $o[] = (CODE_TYPES[$r['type']] ?? $r['type']).': '.$r['code'].(!empty($r['primary']) ? ' (primary)' : '');
