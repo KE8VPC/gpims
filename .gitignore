@@ -1,0 +1,8 @@
+config.php
+uploads/*
+!uploads/.htaccess
+!uploads/index.html
+backups/*
+!backups/.htaccess
+!backups/index.html
+*.zip

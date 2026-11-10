@@ -1,0 +1,14 @@
+.stat-card{border-left:4px solid var(--bs-primary)}
+.table td,.table th{vertical-align:middle}
+.cf-wrap{display:none}
+
+/* Printing (reports, loan sheets): hide the app chrome */
+@media print {
+  .navbar, nav, .d-print-none, .alert, footer, #gp-offline, .btn { display: none !important; }
+  body { background: #fff !important; font-size: 11px; }
+  main, .container, .container-fluid { max-width: 100% !important; padding: 0 !important; }
+  .card { border: 0 !important; box-shadow: none !important; }
+  .table-responsive { overflow: visible !important; }
+  table { font-size: 10.5px; }
+  th i { display: none; }
+}

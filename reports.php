@@ -1,0 +1,58 @@
+<?php require 'inc/bootstrap.php'; need('viewer'); if(me()['role']==='vendor'||!can('reports_view')){http_response_code(403);exit('Access denied.');} $title='Reports';
+$r=$_GET['r']??$_POST['r']??''; if(!isset(REPORTS[$r])) $r='';
+$P=report_params($_POST+$_GET); $isAdmin=me()['role']==='admin';
+if($_SERVER['REQUEST_METHOD']==='POST' && $r){
+  $a=$_POST['action']??''; $ps=report_param_string($r,$P);
+  if($a==='email_me'){ $em=me()['email']??''; if(!mail_enabled()) flash('Email is not set up yet (Admin > Settings).','danger'); elseif(!valid_email($em)) flash('Add your email address on the Account page first.','danger'); else { report_email($r,$ps,[$em]); audit('report_email',$r); flash('Report queued for '.$em.'.','success'); } }
+  elseif($isAdmin && $a==='sched_add'){ $to=parse_emails($_POST['recipients']??''); $fr=in_array($_POST['frequency']??'',['daily','weekly','monthly'],true)?$_POST['frequency']:'weekly'; if(!$to) flash('Enter at least one valid email address.','danger'); else { q("INSERT INTO report_schedules(report,params,frequency,recipients,created_by) VALUES(?,?,?,?,?)",[$r,$ps?:null,$fr,implode(', ',$to),me()['id']]); audit('report_schedule_add',"$r $fr"); flash('Scheduled. It is sent '.($fr==='daily'?'every morning':($fr==='weekly'?'every Monday':'on the 1st of each month')).'.','success'); } }
+  elseif($isAdmin && in_array($a,['sched_del','sched_toggle','sched_now'],true)){ $s=q("SELECT * FROM report_schedules WHERE id=?",[(int)($_POST['sid']??0)])->fetch();
+    if($s){ if($a==='sched_del'){ q("DELETE FROM report_schedules WHERE id=?",[$s['id']]); flash('Schedule removed.'); } elseif($a==='sched_toggle'){ q("UPDATE report_schedules SET active=1-active WHERE id=?",[$s['id']]); flash($s['active']?'Paused.':'Resumed.'); } else { if(!mail_enabled()) flash('Email is not set up yet.','danger'); else { report_email($s['report'],$s['params'],parse_emails($s['recipients']),'Scheduled report'); flash('Sent now.','success'); } } } }
+  redirect('reports.php?r='.$r.($ps?'&'.$ps:''));
+}
+$d=$r?report_build($r,$P):null;
+if($r && !empty($_GET['csv'])){
+  audit('report_csv',$r); while(ob_get_level()) ob_end_clean();
+  header('Content-Type: text/csv; charset=utf-8'); header('Content-Disposition: attachment; filename="gpims-'.$r.'-'.date('Ymd').'.csv"'); $o=fopen('php://output','w'); fwrite($o,"\xEF\xBB\xBF");
+  $safe=function($v){ $v=(string)$v; return ($v!==''&&strpos("=+-@\t\r",$v[0])!==false&&!is_numeric($v))?"'".$v:$v; };
+  fputcsv($o,$d['head']); foreach($d['rows'] as $row) fputcsv($o,array_map($safe,$row)); exit;
+}
+$cats=cats_select(); $locs=locations_all();
+include 'inc/header.php'; ?>
+<h1 class="h4 mb-2 d-print-none">Reports</h1>
+<?php if(!$r): ?>
+<p class="text-muted small">Pick a report. Each one can be downloaded as a CSV file, printed or saved as a PDF, and emailed to you.</p>
+<div class="row g-3"><?php foreach(REPORT_GROUPS as $g=>$keys): ?><div class="col-md-4"><div class="card h-100"><div class="card-header fw-bold"><?=h($g)?></div><div class="list-group list-group-flush"><?php foreach($keys as $k): ?><a class="list-group-item list-group-item-action" href="?r=<?=$k?>"><div class="fw-semibold"><?=h(REPORTS[$k][0])?></div><div class="small text-muted"><?=h(REPORTS[$k][1])?></div></a><?php endforeach; ?></div></div></div><?php endforeach; ?></div>
+<?php if($isAdmin): $sc=q("SELECT * FROM report_schedules ORDER BY id")->fetchAll(); if($sc): ?><div class="card mt-3"><div class="card-header fw-bold"><i class="bi bi-envelope-paper"></i> Scheduled report emails</div><ul class="list-group list-group-flush small"><?php foreach($sc as $s): ?><li class="list-group-item d-flex justify-content-between gap-2 flex-wrap"><span><a href="?r=<?=h($s['report'])?>&<?=h($s['params'])?>"><?=h(REPORTS[$s['report']][0]??$s['report'])?></a> · <?=h($s['frequency'])?> · <?=h($s['recipients'])?> <?=$s['active']?'':'<span class="badge text-bg-secondary">paused</span>'?><span class="text-muted"> · last sent <?=h($s['last_sent']?:'never')?></span></span></li><?php endforeach; ?></ul></div><?php endif; endif; ?>
+<?php else: $f=REPORTS[$r][2]; ?>
+<div class="d-print-none mb-2"><a href="reports.php" class="small">&larr; All reports</a></div>
+<div class="d-none d-print-block mb-2"><div class="fw-bold fs-5"><?=h($cfg['app_name'])?></div><div class="fs-6"><?=h(REPORTS[$r][0])?> · <?=h(date('M j, Y g:ia'))?></div><?php if($d['sub']): ?><div class="small"><?=h($d['sub'])?></div><?php endif; ?></div>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2 d-print-none"><div><h2 class="h5 mb-0"><?=h(REPORTS[$r][0])?></h2><div class="small text-muted"><?=h(REPORTS[$r][1])?></div></div>
+<div class="d-flex gap-1 flex-wrap"><a class="btn btn-sm btn-outline-success" href="?<?=h(http_build_query(array_merge($_GET,['csv'=>1])))?>"><i class="bi bi-download"></i> CSV</a><button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print / PDF</button>
+<form method="post" class="d-inline"><?=csrf_field()?><input type="hidden" name="r" value="<?=h($r)?>"><input type="hidden" name="action" value="email_me"><?php foreach(['from','to','days','cat','loc'] as $k) if(isset($_GET[$k])) echo '<input type="hidden" name="'.$k.'" value="'.h($_GET[$k]).'">'; ?><button class="btn btn-sm btn-outline-primary" <?=mail_enabled()?'':'disabled title="Email is not set up yet"'?>><i class="bi bi-envelope"></i> Email me</button></form></div></div>
+<?php if($f): ?><form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3 d-print-none"><input type="hidden" name="r" value="<?=h($r)?>">
+<?php if(in_array('range',$f)): ?><div><label class="form-label small mb-0">From</label><input class="form-control form-control-sm" type="date" name="from" value="<?=h($P['from'])?>"></div><div><label class="form-label small mb-0">To</label><input class="form-control form-control-sm" type="date" name="to" value="<?=h($P['to'])?>"></div><?php endif; ?>
+<?php if(in_array('days',$f)): ?><div><label class="form-label small mb-0">Within (days)</label><input class="form-control form-control-sm" style="width:100px" type="number" min="1" max="730" name="days" value="<?=$P['days']?>"></div><?php endif; ?>
+<?php if(in_array('cat',$f)): ?><div><label class="form-label small mb-0">Category</label><select class="form-select form-select-sm" name="cat"><option value="">All</option><?php foreach($cats as $c): ?><option value="<?=$c['id']?>" <?=$P['cat']==$c['id']?'selected':''?>><?=h($c['name'])?></option><?php endforeach; ?></select></div><?php endif; ?>
+<?php if(in_array('loc',$f)): ?><div><label class="form-label small mb-0">Location</label><select class="form-select form-select-sm" name="loc"><option value="">All</option><?php foreach($locs as $l): ?><option value="<?=$l['id']?>" <?=$P['loc']==$l['id']?'selected':''?>><?=h(loc_path_name($l['id']))?></option><?php endforeach; ?></select></div><?php endif; ?>
+<button class="btn btn-sm btn-outline-primary">Update</button></form><?php endif; ?>
+<?php if($d['note']): ?><div class="alert alert-warning py-2 small"><?=h($d['note'])?></div><?php endif; ?>
+<div class="d-print-none mb-2"><input class="form-control form-control-sm" style="max-width:280px" id="rpFilter" placeholder="Filter rows…" aria-label="Filter rows"></div>
+<div class="card"><div class="table-responsive"><table class="table table-sm table-hover mb-0" id="rpTable"><thead><tr><?php foreach($d['head'] as $i=>$c): ?><th role="button" data-col="<?=$i?>" class="text-nowrap user-select-none"><?=h($c)?> <i class="bi bi-chevron-expand small text-muted d-print-none"></i></th><?php endforeach; ?></tr></thead><tbody>
+<?php foreach($d['rows'] as $row): ?><tr><?php foreach($row as $c): $bad=is_string($c)&&preg_match('/^(OVERDUE|NEVER)/',$c); ?><td<?=$bad?' class="text-danger fw-semibold"':''?>><?=h($c)?></td><?php endforeach; ?></tr><?php endforeach; if(!$d['rows']) echo '<tr><td class="text-muted p-3" colspan="'.count($d['head']).'">Nothing to show for this report.</td></tr>'; ?></tbody></table></div></div>
+<div class="small text-muted mt-1"><span id="rpCount"><?=count($d['rows'])?></span> row<?=count($d['rows'])===1?'':'s'?></div>
+<?php if($isAdmin): $ps=report_param_string($r,$P); $sc=q("SELECT * FROM report_schedules WHERE report=? ORDER BY id",[$r])->fetchAll(); ?>
+<div class="card mt-3 d-print-none"><div class="card-header fw-bold"><i class="bi bi-envelope-paper"></i> Email this report on a schedule</div><div class="card-body">
+<form method="post" class="row g-2 align-items-end"><?=csrf_field()?><input type="hidden" name="r" value="<?=h($r)?>"><input type="hidden" name="action" value="sched_add"><?php foreach(['from','to','days','cat','loc'] as $k) if(isset($_GET[$k])) echo '<input type="hidden" name="'.$k.'" value="'.h($_GET[$k]).'">'; ?>
+<div class="col-md-5"><label class="form-label small mb-0">Send to</label><input class="form-control form-control-sm" name="recipients" placeholder="addresses, comma separated" value="<?=h(me()['email']??'')?>" required></div>
+<div class="col-md-3"><label class="form-label small mb-0">How often</label><select class="form-select form-select-sm" name="frequency"><option value="daily">Every morning</option><option value="weekly" selected>Every Monday</option><option value="monthly">1st of the month</option></select></div>
+<div class="col-md-4"><button class="btn btn-sm btn-primary">Schedule</button> <span class="small text-muted">uses the filters shown above<?=in_array('range',$f)?'; a date range is fixed, so prefer reports without one':''?></span></div></form>
+<?php if($sc): ?><ul class="list-group list-group-flush small mt-2"><?php foreach($sc as $s): ?><li class="list-group-item px-0 d-flex justify-content-between gap-2 flex-wrap align-items-center"><span><?=h($s['frequency'])?> to <?=h($s['recipients'])?> <?=$s['active']?'':'<span class="badge text-bg-secondary">paused</span>'?><span class="text-muted"> · last sent <?=h($s['last_sent']?:'never')?></span></span>
+<span class="d-flex gap-1"><?php foreach(['sched_now'=>['Send now','outline-primary'],'sched_toggle'=>[$s['active']?'Pause':'Resume','outline-secondary'],'sched_del'=>['Remove','outline-danger']] as $act=>[$lb,$cl]): ?><form method="post"><?=csrf_field()?><input type="hidden" name="r" value="<?=h($r)?>"><input type="hidden" name="action" value="<?=$act?>"><input type="hidden" name="sid" value="<?=$s['id']?>"><button class="btn btn-sm btn-<?=$cl?> py-0"<?=$act==='sched_del'?' data-confirm="Remove this schedule?"':''?>><?=$lb?></button></form><?php endforeach; ?></span></li><?php endforeach; ?></ul><?php endif; ?></div></div>
+<?php endif; ?>
+<script>(function(){var t=document.getElementById('rpTable'),b=t.tBodies[0],fil=document.getElementById('rpFilter'),cnt=document.getElementById('rpCount'),dir={};
+function val(td){var v=td.textContent.trim(),n=parseFloat(v.replace(/,/g,''));return(v!==''&&!isNaN(n)&&/^-?[\d,]*\.?\d+$/.test(v))?n:v.toLowerCase();}
+t.tHead.addEventListener('click',function(e){var th=e.target.closest('th');if(!th)return;var c=+th.dataset.col,d=dir[c]=-(dir[c]||-1);var rows=Array.prototype.slice.call(b.rows).filter(function(r){return r.cells.length>1;});
+rows.sort(function(a,z){var x=val(a.cells[c]),y=val(z.cells[c]);return(x<y?-1:x>y?1:0)*d;});rows.forEach(function(r){b.appendChild(r);});});
+fil.addEventListener('input',function(){var q=fil.value.toLowerCase(),n=0;Array.prototype.forEach.call(b.rows,function(r){var show=r.textContent.toLowerCase().indexOf(q)>-1;r.style.display=show?'':'none';if(show&&r.cells.length>1)n++;});cnt.textContent=n;});})();</script>
+<?php endif; ?>
+<?php include 'inc/footer.php'; ?>

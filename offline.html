@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline</title>
+<style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;background:#f8f9fa;color:#212529;padding:1rem}.w{max-width:480px;margin:0 auto}h1{font-size:1.3rem;margin:.5rem 0}h2{font-size:1rem;margin:1.2rem 0 .4rem}p,.m{color:#6c757d;font-size:.9rem}
+button,input,select{font:inherit;padding:.55rem .7rem;border:1px solid #ced4da;border-radius:.4rem;background:#fff}button{background:#0d6efd;color:#fff;border-color:#0d6efd}button.s{background:#fff;color:#212529;border-color:#ced4da}button.d{background:#fff;color:#dc3545;border-color:#dc3545;padding:.25rem .5rem}
+.row{display:flex;gap:.5rem;margin:.5rem 0;flex-wrap:wrap}.row>input{flex:1;min-width:0}.card{background:#fff;border:1px solid #dee2e6;border-radius:.5rem;padding:.7rem;margin:.5rem 0}.q{display:flex;justify-content:space-between;align-items:center;gap:.5rem;border-bottom:1px solid #eee;padding:.4rem 0}.q:last-child{border:0}
+.modes label{flex:1;text-align:center;border:1px solid #ced4da;border-radius:.4rem;padding:.5rem;background:#fff}.modes input{display:none}.modes input:checked+span{font-weight:700;color:#0d6efd}.ok{color:#198754}.bad{color:#dc3545}video{width:100%;border-radius:.5rem;background:#000}</style></head>
+<body><div class="w"><h1>No connection</h1><p>Inventory counts are only shown live, so nothing can be looked up right now. You can still log stock you use or add; it is saved on this phone and sent when you are back online.</p>
+<div class="row"><button onclick="location.reload()">Try again</button><button class="s" id="goSync" style="display:none" onclick="location.href='offline_sync.php'">Review &amp; sync</button></div>
+<div class="card"><h2 style="margin-top:0">Log a stock change</h2>
+<div class="row"><input id="code" placeholder="Barcode, SKU or GPIMS code" autocomplete="off" autocapitalize="off"><button class="s" id="scan" style="display:none">Scan</button></div>
+<div id="who" class="m"></div><video id="vid" playsinline muted style="display:none"></video>
+<div class="row modes"><label><input type="radio" name="mode" value="use" checked><span>Used</span></label><label><input type="radio" name="mode" value="add"><span>Added</span></label><label><input type="radio" name="mode" value="set"><span>Counted</span></label></div>
+<div class="row"><input id="qty" type="number" inputmode="decimal" min="0" step="any" value="1" style="max-width:7rem"><button id="add" style="flex:1">Add to queue</button></div></div>
+<h2>Waiting to sync <span id="n" class="m"></span></h2><div class="card" id="list"></div>
+<p class="m">Camera scanning works on phones that support it; otherwise type the code or use a Bluetooth scanner.</p></div>
+<script>(function(){
+var KEY='gp-offline-queue',IDX='gp-offline-index',MODES={use:'Used',add:'Added',set:'Counted'};
+function $(i){return document.getElementById(i);}function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')||[];}catch(e){return [];}}function save(q){try{localStorage.setItem(KEY,JSON.stringify(q));}catch(e){}}
+var items=[];try{items=JSON.parse(localStorage.getItem(IDX)||'[]')||[];}catch(e){}
+function find(c){c=String(c||'').trim().toUpperCase();if(!c)return null;var m=/^GPIMS-(\d+)$/.exec(c);for(var i=0;i<items.length;i++){var it=items[i];if(m&&it.id==+m[1])return it;if(it.c.indexOf(c)>-1)return it;}return null;}
+function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
+function who(){var it=find($('code').value);$('who').innerHTML=!$('code').value.trim()?'':it?'<span class="ok">'+esc(it.n)+'</span> · was '+esc(it.q)+' '+esc(it.u):(items.length?'<span class="bad">Not in the saved list</span> (it will be checked when you sync)':'');}
+function draw(){var q=load();$('n').textContent=q.length?'('+q.length+')':'';$('goSync').style.display=q.length?'':'none';var l=$('list');l.innerHTML=q.length?'':'<span class="m">Nothing yet.</span>';
+q.forEach(function(e,i){var it=find(e.code),d=document.createElement('div');d.className='q';d.innerHTML='<div><b>'+esc(it?it.n:e.code)+'</b><div class="m">'+esc(MODES[e.mode])+' '+esc(e.qty)+' · '+esc(new Date(e.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}))+'</div></div><button class="d" data-i="'+i+'">Remove</button>';l.appendChild(d);});}
+$('list').addEventListener('click',function(ev){var b=ev.target.closest('button[data-i]');if(!b)return;var q=load();q.splice(+b.dataset.i,1);save(q);draw();});
+$('code').addEventListener('input',who);
+$('add').addEventListener('click',function(){var c=$('code').value.trim(),n=parseFloat($('qty').value),m=document.querySelector('input[name=mode]:checked').value;
+if(!c){$('code').focus();return;}if(isNaN(n)||n<0||(m!=='set'&&n===0)){$('qty').focus();return;}
+var q=load();q.push({id:'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),code:c,mode:m,qty:n,at:Date.now()});save(q);$('code').value='';$('qty').value='1';$('who').innerHTML='';draw();$('code').focus();});
+var stream=null,timer=null;function stop(){if(timer)clearInterval(timer);timer=null;if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}$('vid').style.display='none';}
+if('BarcodeDetector' in window&&navigator.mediaDevices){$('scan').style.display='';$('scan').addEventListener('click',function(){if(stream){stop();return;}
+var det=new BarcodeDetector();navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(s){stream=s;var v=$('vid');v.srcObject=s;v.style.display='block';v.play();
+timer=setInterval(function(){det.detect(v).then(function(r){if(r&&r.length){$('code').value=r[0].rawValue;stop();who();$('qty').focus();}}).catch(function(){});},400);}).catch(function(){$('who').textContent='Camera not available. Type the code instead.';});});}
+draw();})();</script></body></html>
