@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($it['min_qty'] > 0 && $new > $it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL", [$it['id']]);
     try { notify_stock($it, $it['qty'], $new); } catch (Throwable $ex) {}
     $type = $mode === 'set' ? 'adjust' : ($mode === 'use' ? 'out' : 'in');
-    q("INSERT INTO transactions(item_id,user_id,type,qty,balance,note) VALUES(?,?,?,?,?,?)", [$it['id'], me()['id'], $type, $n, $new, 'Offline scan'.($at > 1e9 ? ' from '.date('M j g:ia', $at) : '')]);
+    tx_add($it['id'], me()['id'], $type, $n, $new, 'Offline scan'.($at > 1e9 ? ' from '.date('M j g:ia', $at) : ''));
     audit('offline_scan', 'id:'.$eid.' #'.$it['id'].' '.$mode.' '.fmt_q($n));
     $r['ok'] = true; $r['msg'] = fmt_q($it['qty']).' → '.fmt_q($new).($it['unit'] ? ' '.$it['unit'] : ''); unset($r);
   }

@@ -21,6 +21,7 @@ $up = __DIR__.'/uploads';
 if (!is_dir($up)) chk('Uploads folder', 'fail', 'Folder is missing.');
 else { $t = $up.'/.healthcheck'; $w = @file_put_contents($t, 'x') !== false; if ($w) @unlink($t); chk('Uploads folder', $w ? 'ok' : 'fail', $w ? 'Exists and is writable' : 'Not writable. Set permissions to 755 or 775.'); }
 chk('install.php removed', file_exists(__DIR__.'/install.php') ? 'fail' : 'ok', file_exists(__DIR__.'/install.php') ? 'Delete install.php from the server.' : 'Not present');
+try { $ni = (int)q("SELECT COUNT(*) FROM api_integrations WHERE active=1")->fetchColumn(); if ($ni) { $httpsOn = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'); chk('Integration API', $httpsOn || setting('api_allow_http','0') === '1' ? 'ok' : 'warn', "$ni integration".($ni == 1 ? '' : 's').' switched on'.($httpsOn ? '' : '. Keys are refused over plain HTTP.')); } } catch (Throwable $e) {}
 $cp = @fileperms(__DIR__.'/config.php'); chk('config.php permissions', ($cp && ($cp & 0002)) ? 'warn' : 'ok', $cp ? substr(sprintf('%o', $cp), -4).(($cp & 0002) ? ' (world-writable, tighten to 640 or 644)' : '') : 'Unreadable');
 chk('HTTPS', $https ? 'ok' : 'warn', $https ? 'Connection is secure' : 'Not using HTTPS. Camera scanning will not work and passwords travel unprotected.');
 $uf = bytes(ini_get('upload_max_filesize')); $pm = bytes(ini_get('post_max_size'));

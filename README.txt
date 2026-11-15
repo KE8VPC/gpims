@@ -1,4 +1,4 @@
-GPIMS - General Purpose Inventory Management System (Milestone 6c - Email, passkeys, check photos, reports (includes everything from 3a through 5c))
+GPIMS - General Purpose Inventory Management System (Milestone 6d - Email, passkeys, check photos, reports (includes everything from 3a through 5c))
 Requires: PHP 7.4+ (PDO MySQL, mbstring; GD and exif recommended), MySQL/MariaDB, Apache (for .htaccess). Use HTTPS so camera scanning works.
 
 NEW INSTALL
@@ -200,3 +200,11 @@ AFTER 6c (not yet a numbered milestone) - security
 - Two-factor sign-in (My account > Two-factor sign-in): works with any authenticator app (Google/Microsoft Authenticator, Authy, 1Password). Setup shows a key and an "Open in authenticator app" link (no camera needed), then asks for the first code. 8 one-time recovery codes are shown once. Turning it off or making new codes needs your password plus a code. An administrator can reset a user who lost their phone (Admin > Users > Access > Two-factor sign-in > Reset). Passkey sign-in is unaffected. Open Admin > Upgrade once (database update 18).
 - install.php removes itself when the installation finishes.
 - Security fixes from the audit: empty CSRF token refused, PHP errors hidden from visitors, labels search fix.
+
+NEW IN 6d - Integration API for OpsHub and other systems (open Admin > Upgrade once, database update 19)
+- Admin > Integrations (API): create an integration (for example OpsHub), choose what it may do (Read, See people names, Change stock), and get an access key. The key is shown once, stored hashed, and can be revoked, rotated or switched off at any time. Everything the integration does is written to the audit log under its name.
+- Address: https://your-site/gpims/api/v1/ (HTTPS only). Send the key as "Authorization: Bearer gpi_..." (or "X-API-Token: gpi_..." if your host strips the Authorization header).
+- Read: meta, items (paged), items/{id}, items/by-code/{code}, items/changes, transactions, alerts, checkouts, people, locations, categories.
+- Write: items/{id}/use, restock, adjust (counts need the item's current "rev"), checkout, return, and transactions/{id}/undo. Every write needs an Idempotency-Key header; repeating it returns the first result and changes nothing. An incident reference ("ref") can be attached and is searchable.
+- Change feeds use commit-ordered sequence numbers so a connected system never misses or double-counts a change. A backup restore creates a new "data generation" so connected systems know to re-check.
+- Full contract: GPIMS-API-v1 document in the project / coordination folder (v1.4).

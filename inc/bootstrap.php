@@ -4,12 +4,13 @@ require_once __DIR__.'/version.php';
 $root = dirname(__DIR__);
 if (!file_exists("$root/config.php")) { header('Location: install.php'); exit; }
 $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-if (session_status() === PHP_SESSION_NONE) {
+if (defined('GP_API')) { $_SESSION = []; }
+elseif (session_status() === PHP_SESSION_NONE) {
   session_name('gpims_sid');
   session_set_cookie_params(['lifetime'=>0, 'path'=>rtrim(dirname($_SERVER['SCRIPT_NAME']), '/').'/', 'secure'=>$https, 'httponly'=>true, 'samesite'=>'Lax']);
   session_start();
 }
-if (!headers_sent()) {
+if (!headers_sent() && !defined('GP_API')) {
   header('X-Content-Type-Options: nosniff'); header('X-Frame-Options: SAMEORIGIN'); header('Referrer-Policy: same-origin');
   header('Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), publickey-credentials-get=(self), publickey-credentials-create=(self)');
   header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'");
@@ -43,7 +44,7 @@ function flash($msg = null, $type = 'success'){
   if ($msg !== null) { $_SESSION['flash'][] = [$type, $msg]; return; }
   $f = $_SESSION['flash'] ?? []; unset($_SESSION['flash']); return $f;
 }
-function audit($action, $details = ''){ q("INSERT INTO audit_log(user_id,action,details) VALUES(?,?,?)", [me()['id'] ?? null, $action, mb_substr($details,0,250)]); }
+function audit($action, $details = ''){ if (!empty($GLOBALS['API_CTX'])) $details = '[api: '.$GLOBALS['API_CTX']['name'].'] '.$details; q("INSERT INTO audit_log(user_id,action,details) VALUES(?,?,?)", [me()['id'] ?? null, $action, mb_substr($details,0,250)]); }
 function redirect($url){ header("Location: $url"); exit; }
 function status_badge($s){
   $c = ['available'=>'success','checked_out'=>'warning','maintenance'=>'info','retired'=>'secondary'][$s] ?? 'light';
@@ -71,10 +72,12 @@ require __DIR__.'/trash.php';
 require __DIR__.'/backup.php';
 require __DIR__.'/lookup.php';
 require __DIR__.'/totp.php';
+require __DIR__.'/api.php';
 try { foreach (q("SELECT k,v FROM settings")->fetchAll() as $r) $SETTINGS[$r['k']] = $r['v']; } catch (Exception $e) { $SETTINGS = []; }
 $db_outdated = db_version() < APP_DB_VERSION;
 $page = basename($_SERVER['SCRIPT_NAME']);
 if ($db_outdated && !in_array($page, ['login.php','logout.php','upgrade.php','health.php'])) {
+  if (defined('GP_API')) { http_response_code(503); header('Content-Type: application/json'); exit('{"error":{"code":"upgrade_required","message":"GPIMS needs its database upgrade first."}}'); }
   if (me() && me()['role'] === 'admin') redirect('upgrade.php');
   http_response_code(503);
   exit('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><div class="container py-5 text-center" style="max-width:520px"><h1 class="h3">System update in progress</h1><p class="text-muted">An administrator needs to finish a quick update. Please check back shortly.</p><a href="login.php">Back to sign in</a></div>');
@@ -95,5 +98,5 @@ if (me()) {
     session_unset(); session_destroy(); session_start(); flash('You were signed out after being idle.', 'warning');
   } else $_SESSION['last'] = time();
 }
-csrf_check();
+if (!defined('GP_API')) csrf_check();
 if (me() && !$db_outdated) mail_maybe_flush();

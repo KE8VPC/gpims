@@ -15,16 +15,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $n=(float)$_POST['qty']; $new = $a==='in' ? $it['qty']+$n : ($a==='out' ? $it['qty']-$n : $n);
     if ($n<0 || ($a!=='set' && $n==0)) flash('Enter a valid quantity.','danger');
     elseif ($new<0) flash('Not enough stock.','danger');
-    else { q("UPDATE items SET qty=? WHERE id=?",[$new,$id]); if ($it['min_qty']>0 && $new>$it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL",[$id]); try { notify_stock($it,$it['qty'],$new); } catch (Throwable $e) {} q("INSERT INTO transactions(item_id,user_id,type,qty,balance,note,incident_id) VALUES(?,?,?,?,?,?,?)",[$id,$uid,$a==='set'?'adjust':$a,$n,$new,$note,$incId]); audit("stock_$a","#$id $n"); flash('Stock updated.'); }
+    else { q("UPDATE items SET qty=? WHERE id=?",[$new,$id]); if ($it['min_qty']>0 && $new>$it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL",[$id]); try { notify_stock($it,$it['qty'],$new); } catch (Throwable $e) {} tx_add($id,$uid,$a==='set'?'adjust':$a,$n,$new,$note,$incId); audit("stock_$a","#$id $n"); flash('Stock updated.'); }
   } elseif ($it['type']==='asset' && $a==='checkout' && $it['status']==='available' && can('checkout')) {
     [$b,$pid,$perr]=resolve_borrower(); if($perr){ flash($perr,'danger'); } else {
     $incId=incident_id_valid($_POST['incident_id']??''); q("INSERT INTO checkouts(item_id,borrower,person_id,user_id,due_at,note,incident_id) VALUES(?,?,?,?,?,?,?)",[$id,$b,$pid,$uid,($_POST['due_at']??'')?:null,$note,$incId]); q("UPDATE items SET status='checked_out' WHERE id=?",[$id]);
-    q("INSERT INTO transactions(item_id,user_id,type,qty,note) VALUES(?,?,?,?,?)",[$id,$uid,'checkout',1,"To $b".($note?" - $note":'')]); audit('checkout',"#$id to $b"); flash('Checked out.'); }
+    tx_add($id,$uid,'checkout',1,null,"To $b".($note?" - $note":'')); audit('checkout',"#$id to $b"); flash('Checked out.'); }
   } elseif ($it['type']==='asset' && $a==='transfer' && $it['status']==='checked_out' && can('checkout')) {
     [$b,$pid,$perr]=resolve_borrower(); if($perr){ flash($perr,'danger'); } else {
     $prevInc=q("SELECT incident_id FROM checkouts WHERE item_id=? AND in_at IS NULL ORDER BY id DESC LIMIT 1",[$id])->fetchColumn()?:null; q("UPDATE checkouts SET in_at=NOW() WHERE item_id=? AND in_at IS NULL",[$id]);
     q("INSERT INTO checkouts(item_id,borrower,person_id,user_id,due_at,note,incident_id) VALUES(?,?,?,?,?,?,?)",[$id,$b,$pid,$uid,($_POST['due_at']??'')?:null,$note,$prevInc]);
-    q("INSERT INTO transactions(item_id,user_id,type,qty,note) VALUES(?,?,?,?,?)",[$id,$uid,'transfer',1,"To $b".($note?" - $note":'')]); audit('transfer',"#$id to $b"); flash('Transferred to '.$b.'.'); }
+    tx_add($id,$uid,'transfer',1,null,"To $b".($note?" - $note":'')); audit('transfer',"#$id to $b"); flash('Transferred to '.$b.'.'); }
   } elseif ($it['type']==='asset' && $a==='return' && $it['status']==='checked_out' && can('checkout')) {
     [$ok,$m]=asset_return($id,$_POST['outcome']??'good',$note,me()['name']?:me()['username'],''); flash($m,$ok?'success':'danger');
   } elseif ($it['type']==='asset' && $a==='swap' && $it['status']==='checked_out' && can('checkout')) {
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   } elseif ($it['type']==='returnable' && $a==='handoff_line' && can('checkout')) {
     [$b,$pid,$perr]=resolve_borrower(); if($perr){ flash($perr,'danger'); } else { $hl=(int)q("SELECT item_id FROM issues WHERE id=?",[(int)($_POST['issue_id']??0)])->fetchColumn(); if($hl!==$id) flash('That line is not for this item.','danger'); else { [$ok,$m]=do_handoff_line((int)$_POST['issue_id'],(float)($_POST['qty']??0),$b,$pid,$note); flash($m,$ok?'success':'danger'); } }
   } elseif ($a==='status' && can('items_edit') && $it['type']==='asset' && in_array($_POST['status'],['available','maintenance','retired'])) {
-    q("UPDATE items SET status=? WHERE id=?",[$_POST['status'],$id]); q("INSERT INTO transactions(item_id,user_id,type,qty,note) VALUES(?,?,?,?,?)",[$id,$uid,'status',0,$_POST['status']]); audit('status',"#$id {$_POST['status']}"); flash('Status updated.');
+    q("UPDATE items SET status=? WHERE id=?",[$_POST['status'],$id]); tx_add($id,$uid,'status',0,null,$_POST['status']); audit('status',"#$id {$_POST['status']}"); flash('Status updated.');
   } elseif ($a==='add_vendor' && can('items_edit')) {
     $vid=(int)$_POST['vendor_id'];
     if ($vid && !q("SELECT 1 FROM item_vendors WHERE item_id=? AND vendor_id=?",[$id,$vid])->fetch()) {
@@ -52,16 +52,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
       foreach($rows as $k=>$r) q("UPDATE item_vendors SET rank_no=? WHERE id=?",[$k+1,$r['id']]);
       audit('item_vendor_'.$a,"#$id");
     }
-  } elseif ($a==='add_lot' && can('items_edit')) {
+  } elseif ($a==='add_lot' && can('items_edit')) { api_change($id,'updated');
     if (trim($_POST['expires_on'])==='') flash('Enter an expiration date.','danger');
     else { q("INSERT INTO item_lots(item_id,lot_no,qty,expires_on,note) VALUES(?,?,?,?,?)",[$id,trim($_POST['lot_no'])?:null,$_POST['lot_qty']!==''?(float)$_POST['lot_qty']:null,$_POST['expires_on'],trim($_POST['lot_note']??'')?:null]); audit('item_lot_add',"#$id"); flash('Expiration entry added.'); }
-  } elseif ($a==='discard_lot' && can('items_edit')) {
+  } elseif ($a==='discard_lot' && can('items_edit')) { api_change($id,'updated');
     $lot=q("SELECT * FROM item_lots WHERE id=? AND item_id=?",[(int)($_POST['lot_id']??0),$id])->fetch();
     if ($lot) { $msg='Entry removed.';
       if ($lot['qty']!==null && (float)$lot['qty']>0 && $it['type']!=='asset' && can('stock_move')) { $n=min((float)$lot['qty'],(float)$it['qty']); $new=(float)$it['qty']-$n;
-        if ($n>0) { q("UPDATE items SET qty=? WHERE id=?",[$new,$id]); try { notify_stock($it,$it['qty'],$new); } catch (Throwable $e) {} q("INSERT INTO transactions(item_id,user_id,type,qty,balance,note) VALUES(?,?,?,?,?,?)",[$id,$uid,'out',$n,$new,'Discarded'.($lot['expires_on']<date('Y-m-d')?' expired':'').' stock'.($lot['lot_no']?' (lot '.$lot['lot_no'].')':'')]); $msg='Discarded '.fmt_q($n).' from stock.'; } }
+        if ($n>0) { q("UPDATE items SET qty=? WHERE id=?",[$new,$id]); try { notify_stock($it,$it['qty'],$new); } catch (Throwable $e) {} tx_add($id,$uid,'out',$n,$new,'Discarded'.($lot['expires_on']<date('Y-m-d')?' expired':'').' stock'.($lot['lot_no']?' (lot '.$lot['lot_no'].')':'')); $msg='Discarded '.fmt_q($n).' from stock.'; } }
       q("DELETE FROM item_lots WHERE id=?",[$lot['id']]); audit('item_lot_discard',"#$id"); flash($msg); }
-  } elseif ($a==='del_lot' && can('items_edit')) { q("DELETE FROM item_lots WHERE id=? AND item_id=?",[(int)$_POST['lot_id'],$id]); audit('item_lot_del',"#$id"); flash('Entry removed.');
+  } elseif ($a==='del_lot' && can('items_edit')) { api_change($id,'updated'); q("DELETE FROM item_lots WHERE id=? AND item_id=?",[(int)$_POST['lot_id'],$id]); audit('item_lot_del',"#$id"); flash('Entry removed.');
   } elseif ($a==='photo' && can('photos_add')) {
     $ok=0; $cnt=(int)q("SELECT COUNT(*) FROM item_photos WHERE item_id=?",[$id])->fetchColumn(); $f=$_FILES['photos']??null;
     if ($f && is_array($f['name'])) foreach ($f['name'] as $k=>$_) { if ($cnt+$ok>=10) break; if ($f['error'][$k]===UPLOAD_ERR_INI_SIZE || $f['error'][$k]===UPLOAD_ERR_FORM_SIZE) $big=1; if ($f['error'][$k]!==UPLOAD_ERR_OK || $f['size'][$k]>15*1024*1024) continue;

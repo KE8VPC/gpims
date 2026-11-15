@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   } else {
     $qty=(float)($_POST['qty']??0);
     q("INSERT INTO items(name,sku,barcode,type,category_id,location_id,description,unit,min_qty,serial,custom_data,par_qty,reorder_qty,unit_cost,qty) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", array_merge($vals,[$type!=='asset'?$qty:1]));
-    $nid=$pdo->lastInsertId(); sync_item_codes($nid,$codes); if($type!=='asset' && $qty>0) q("INSERT INTO transactions(item_id,user_id,type,qty,balance,note) VALUES(?,?,?,?,?,?)",[$nid,me()['id'],'initial',$qty,$qty,'Initial stock']);
+    $nid=$pdo->lastInsertId(); sync_item_codes($nid,$codes); if($type!=='asset' && $qty>0) tx_add($nid,me()['id'],'initial',$qty,$qty,'Initial stock');
     $okp=0; $f=$_FILES['photos']??null; if ($f && is_array($f['name'])) foreach ($f['name'] as $k=>$_) { if ($okp>=4) break; if (($f['error'][$k]??4)!==UPLOAD_ERR_OK || $f['size'][$k]>15*1024*1024) continue; $pn=save_photo($f['tmp_name'][$k],$root.'/uploads'); if ($pn) { q("INSERT INTO item_photos(item_id,filename) VALUES(?,?)",[$nid,$pn]); $okp++; } }
     if (!$okp && !empty($_POST['lookup_photo'])) lookup_attach_photo($nid,$_POST['lookup_code']??'',$_POST['lookup_photo']);
     $exp=trim($_POST['exp_date']??''); if ($exp!=='' && $type!=='asset' && preg_match('/^\d{4}-\d{2}-\d{2}$/',$exp)) q("INSERT INTO item_lots(item_id,qty,expires_on) VALUES(?,?,?)",[$nid,$qty>0?$qty:null,$exp]);

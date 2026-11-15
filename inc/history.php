@@ -8,11 +8,15 @@ function item_snapshot($row){
           'Description'=>$row['description'], 'Unit'=>$row['unit'], 'Low-stock alert'=>($row['min_qty'] + 0), 'Serial'=>$row['serial'], 'Par level'=>$row['par_qty'] === null ? '' : ($row['par_qty'] + 0), 'Reorder quantity'=>$row['reorder_qty'] === null ? '' : ($row['reorder_qty'] + 0), 'Unit cost'=>$row['unit_cost'] === null ? '' : ($row['unit_cost'] + 0), 'Codes'=>($row['_codes'] ?? item_codes_summary((int)($row['id'] ?? 0))), 'Custom fields'=>implode('; ', $cf)];
 }
 function log_item_changes($id, $before, $after){
+  $changed = false;
   foreach ($after as $f => $v) {
     $o = (string)($before[$f] ?? ''); $n = (string)$v;
-    if ($o !== $n) q("INSERT INTO item_history(item_id,user_id,action,field,old_value,new_value) VALUES(?,?,?,?,?,?)", [$id, me()['id'] ?? null, 'edit', $f, mb_substr($o,0,500), mb_substr($n,0,500)]);
+    if ($o !== $n) { $changed = true; q("INSERT INTO item_history(item_id,user_id,action,field,old_value,new_value) VALUES(?,?,?,?,?,?)", [$id, me()['id'] ?? null, 'edit', $f, mb_substr($o,0,500), mb_substr($n,0,500)]); }
   }
+  if ($changed) api_change($id, 'updated');
 }
 function log_item_event($id, $action, $note = ''){
   q("INSERT INTO item_history(item_id,user_id,action,new_value) VALUES(?,?,?,?)", [$id, me()['id'] ?? null, $action, mb_substr($note,0,500)]);
+  $k = ['created'=>'created','archived'=>'archived','deleted'=>'trashed','restored'=>'restored'][$action] ?? null;
+  if ($k) api_change($id, $k);
 }

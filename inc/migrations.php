@@ -109,6 +109,24 @@ function migrations(){
     18 => ['Two-factor login (authenticator app)', function(){
       if (!col_exists('users','totp_secret')) q("ALTER TABLE users ADD COLUMN totp_secret VARCHAR(64) NULL, ADD COLUMN totp_enabled TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN totp_last INT NOT NULL DEFAULT 0, ADD COLUMN totp_recovery TEXT NULL");
     }],
+    19 => ['Integration API (tokens, change feeds)', function(){
+      global $pdo;
+      if (!col_exists('transactions','seq')) q("ALTER TABLE transactions ADD COLUMN seq BIGINT NULL, ADD COLUMN ref VARCHAR(60) NULL, ADD COLUMN by_name VARCHAR(100) NULL, ADD COLUMN by_id VARCHAR(40) NULL, ADD COLUMN integration_id INT NULL");
+      q("CREATE TABLE IF NOT EXISTS api_seq(id TINYINT NOT NULL PRIMARY KEY,v BIGINT NOT NULL DEFAULT 0) ENGINE=InnoDB");
+      q("INSERT IGNORE INTO api_seq(id,v) VALUES(1,0)");
+      q("CREATE TABLE IF NOT EXISTS api_changes(seq BIGINT NOT NULL PRIMARY KEY,item_id INT NOT NULL,kind VARCHAR(12) NOT NULL,at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX(item_id,seq),INDEX(at)) ENGINE=InnoDB");
+      q("CREATE TABLE IF NOT EXISTS api_integrations(id INT AUTO_INCREMENT PRIMARY KEY,name VARCHAR(80) NOT NULL UNIQUE,scopes VARCHAR(60) NOT NULL DEFAULT 'read',active TINYINT(1) NOT NULL DEFAULT 1,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,last_used_at DATETIME NULL) ENGINE=InnoDB");
+      q("CREATE TABLE IF NOT EXISTS api_tokens(id INT AUTO_INCREMENT PRIMARY KEY,integration_id INT NOT NULL,token_hash CHAR(64) NOT NULL UNIQUE,hint VARCHAR(8) NOT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,revoked_at DATETIME NULL,last_used_at DATETIME NULL,INDEX(integration_id),FOREIGN KEY(integration_id) REFERENCES api_integrations(id) ON DELETE CASCADE) ENGINE=InnoDB");
+      q("CREATE TABLE IF NOT EXISTS api_idem(integration_id INT NOT NULL,ikey VARCHAR(80) NOT NULL,req_hash CHAR(64) NOT NULL,http_code SMALLINT NOT NULL DEFAULT 200,response MEDIUMTEXT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(integration_id,ikey),INDEX(created_at)) ENGINE=InnoDB");
+      q("CREATE TABLE IF NOT EXISTS api_rate(integration_id INT NOT NULL,win INT NOT NULL,n INT NOT NULL DEFAULT 0,PRIMARY KEY(integration_id,win)) ENGINE=InnoDB");
+      // number every existing transaction in id order, then give every existing item a 'created' change row
+      $n = (int)q("SELECT v FROM api_seq WHERE id=1")->fetchColumn();
+      foreach (q("SELECT id FROM transactions WHERE seq IS NULL ORDER BY id")->fetchAll(PDO::FETCH_COLUMN) as $tid) { $n++; q("UPDATE transactions SET seq=? WHERE id=?", [$n, $tid]); }
+      foreach (q("SELECT id FROM items WHERE deleted_at IS NULL AND id NOT IN (SELECT item_id FROM api_changes) ORDER BY id")->fetchAll(PDO::FETCH_COLUMN) as $iid) { $n++; q("INSERT INTO api_changes(seq,item_id,kind) VALUES(?,?,'created')", [$n, $iid]); }
+      q("UPDATE api_seq SET v=? WHERE id=1", [$n]);
+      foreach ([['seq','UNIQUE INDEX seq(seq)'],['ref','INDEX ref(ref)'],['item_seq','INDEX item_seq(item_id,seq)']] as [$nm,$def]) if (!q("SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='transactions' AND index_name=? LIMIT 1", [$nm])->fetchColumn()) q("ALTER TABLE transactions ADD $def");
+      foreach (['installation_id', 'data_generation'] as $k) if (!q("SELECT 1 FROM settings WHERE k=?", [$k])->fetchColumn()) q("INSERT INTO settings(k,v) VALUES(?,?)", [$k, api_uuid()]);
+    }],
   ];
 }
 function run_upgrade(){

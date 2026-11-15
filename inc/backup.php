@@ -92,8 +92,9 @@ function restore_run($path, $isZip){
     $tmp = tempnam(sys_get_temp_dir(), 'gpr'); $s = $z->getStream('database.sql'); $o = fopen($tmp, 'wb'); stream_copy_to_stream($s, $o); fclose($o); fclose($s); $z->close(); $sql = $tmp;
   }
   [$ok, $msg] = restore_sql($sql); if ($tmp) @unlink($tmp);
+  try { global $SETTINGS; $SETTINGS = []; foreach (q("SELECT k,v FROM settings")->fetchAll() as $r) $SETTINGS[$r['k']] = $r['v']; api_new_generation(); } catch (Throwable $e) {}   // data went back in time: integrations must re-check
   if (!$ok) return [false, $msg.' Safety copy: '.$safe];
   $files = $isZip ? restore_uploads_from_zip($path) : 0;
-  try { run_upgrade(); } catch (Throwable $e) {}
+  try { run_upgrade(); api_ids(); } catch (Throwable $e) {}
   return [true, $msg.($isZip ? " $files photo/document file".($files == 1 ? '' : 's').' restored.' : '').' A safety copy of the previous data was saved as '.$safe.'.'];
 }

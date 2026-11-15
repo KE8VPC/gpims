@@ -28,7 +28,7 @@ function issue_event($iid, $event, $qty, $outcome = null, $byName = null, $fromN
     [$iid, $event, $qty, $outcome, me()['id'] ?? null, $byName, $fromName, $toName, mb_substr((string)$note, 0, 255) ?: null]);
 }
 function tx_log($item_id, $type, $qty, $balance, $note, $incident_id = null){
-  q("INSERT INTO transactions(item_id,user_id,type,qty,balance,note,incident_id) VALUES(?,?,?,?,?,?,?)", [$item_id, me()['id'] ?? null, $type, $qty, $balance, mb_substr((string)$note, 0, 255) ?: null, $incident_id]);
+  tx_add($item_id, me()['id'] ?? null, $type, $qty, $balance, $note, $incident_id);
 }
 function incident_name($id){ if (!$id) return ''; $r = q("SELECT name FROM incidents WHERE id=?", [$id])->fetchColumn(); return $r ?: ''; }
 

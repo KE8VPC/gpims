@@ -22,7 +22,7 @@ function item_purge($it){
   $id = (int)$it['id'];
   foreach (q("SELECT filename FROM item_photos WHERE item_id=?", [$id])->fetchAll() as $p) drop_upload($p['filename']);
   docs_purge($id, null); q("UPDATE checklist_items SET item_id=NULL WHERE item_id=?", [$id]); q("UPDATE vehicles SET item_id=NULL WHERE item_id=?", [$id]);
-  q("DELETE FROM items WHERE id=?", [$id]); audit('item_delete', "#$id {$it['name']}");
+  api_change($id, 'purged'); q("DELETE FROM items WHERE id=?", [$id]); audit('item_delete', "#$id {$it['name']}");
 }
 function trash_purge_old(){
   $n = 0;
@@ -35,7 +35,8 @@ function tx_undo_block($t, $it){
   if (!in_array($t['type'], ['in', 'out', 'adjust'], true) || $t['undo_of'] || $t['undone_at']) return 'Only a stock add, use or count change can be undone.';
   if ($it['type'] === 'asset' || $it['archived_at']) return 'This item cannot be changed right now.';
   if (strtotime($t['created_at']) < time() - UNDO_WINDOW_DAYS * 86400) return 'Too old to undo ('.UNDO_WINDOW_DAYS.' days).';
-  if (!(level() >= ROLES['admin'] || ((int)$t['user_id'] === (int)(me()['id'] ?? 0) && can('stock_move')))) return 'You can only undo your own changes.';
+  if (!empty($GLOBALS['API_CTX'])) { if ((int)$t['integration_id'] !== (int)$GLOBALS['API_CTX']['integration_id']) return 'An integration can only undo its own changes.'; }
+  elseif (!(level() >= ROLES['admin'] || ((int)$t['user_id'] === (int)(me()['id'] ?? 0) && can('stock_move')))) return 'You can only undo your own changes.';
   $last = q("SELECT id FROM transactions WHERE item_id=? AND balance IS NOT NULL ORDER BY id DESC LIMIT 1", [$t['item_id']])->fetchColumn();
   if ((int)$last !== (int)$t['id'] || abs((float)$it['qty'] - (float)$t['balance']) > 0.0001) return 'Something else has changed this item since, so undo the newer change first.';
   if ($t['type'] === 'adjust' && !q("SELECT 1 FROM transactions WHERE item_id=? AND id<? AND balance IS NOT NULL LIMIT 1", [$t['item_id'], $t['id']])->fetch()) return 'There is no earlier quantity to go back to.';
@@ -52,7 +53,7 @@ function tx_undo($tid){
   if ($new < 0) return [false, 'Undoing this would take the stock below zero.'];
   q("UPDATE items SET qty=? WHERE id=?", [$new, $it['id']]);
   if ($it['min_qty'] > 0 && $new > $it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL", [$it['id']]);
-  q("INSERT INTO transactions(item_id,user_id,type,qty,balance,note,undo_of) VALUES(?,?,?,?,?,?,?)", [$it['id'], me()['id'] ?? null, 'undo', abs($new - $cur), $new, 'Undo of #'.$t['id'].' ('.$t['type'].' '.fmt_q($t['qty']).')', $t['id']]);
+  tx_add($it['id'], me()['id'] ?? null, 'undo', abs($new - $cur), $new, 'Undo of #'.$t['id'].' ('.$t['type'].' '.fmt_q($t['qty']).')', null, $t['id'], $t['ref']);
   q("UPDATE transactions SET undone_at=NOW() WHERE id=?", [$t['id']]);
   audit('stock_undo', "#{$it['id']} {$it['name']} tx{$t['id']}");
   return [true, 'Undone. '.$it['name'].' is back to '.fmt_q($new).'.'];

@@ -139,4 +139,5 @@ function housekeeping(){
   try { trash_purge_old(); } catch (Throwable $e) {}
   try { backup_auto_run(); } catch (Throwable $e) {}
   try { lookup_cleanup(); } catch (Throwable $e) {}
+  try { api_housekeeping(); api_ids(); } catch (Throwable $e) {}
 }
