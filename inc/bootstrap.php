@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/version.php';
+@ini_set("display_errors","0"); @ini_set("log_errors","1");
 $root = dirname(__DIR__);
 if (!file_exists("$root/config.php")) { header('Location: install.php'); exit; }
 $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
@@ -36,7 +37,7 @@ function csrf(){ if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(rando
 function csrf_field(){ return '<input type="hidden" name="csrf" value="'.csrf().'">'; }
 function csrf_check(){
   if ($_SERVER['REQUEST_METHOD']==='POST' && !$_POST && !$_FILES && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0 && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 1024) { http_response_code(413); exit('That upload was larger than this server allows (post_max_size). Go back and try a smaller photo.'); }
-  if ($_SERVER['REQUEST_METHOD']==='POST' && !hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) { http_response_code(400); exit('Bad request (CSRF). Reload the page and try again.'); }
+  if ($_SERVER['REQUEST_METHOD']==='POST' && (($_SESSION['csrf'] ?? '') === '' || !hash_equals((string)$_SESSION['csrf'], (string)($_POST['csrf'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))))) { http_response_code(400); exit('Bad request (CSRF). Reload the page and try again.'); }
 }
 function flash($msg = null, $type = 'success'){
   if ($msg !== null) { $_SESSION['flash'][] = [$type, $msg]; return; }

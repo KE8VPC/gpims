@@ -30,7 +30,7 @@ if (($_GET['ajax'] ?? '') === 'rows') {
   header('Content-Type: application/json'); echo json_encode(['html' => $html, 'total' => $total, 'pages' => $pages, 'pg' => $pg, 'pp' => LAB_PP]); exit;
 }
 if (($_GET['ajax'] ?? '') === 'ids') { header('Content-Type: application/json'); echo json_encode(array_map('intval', q("SELECT i.id FROM items i WHERE $LW ORDER BY i.name LIMIT 3000", $LP)->fetchAll(PDO::FETCH_COLUMN))); exit; }
-if ($labels === null) { $labTotal = (int)q("SELECT COUNT(*) FROM items i WHERE $LW", $LP)->fetchColumn(); $all = q("$labSel LIMIT ".LAB_PP)->fetchAll(); }
+if ($labels === null) { $labTotal = (int)q("SELECT COUNT(*) FROM items i WHERE $LW", $LP)->fetchColumn(); $all = q("$labSel LIMIT ".LAB_PP, $LP)->fetchAll(); }
 $styleJs = []; foreach (LABEL_STYLES as $k => $s) $styleJs[$k] = ['w'=>$s[1], 'h'=>$s[2], 'layout'=>$s[3]];
 include 'inc/header.php'; ?>
 <style>.lbl{display:inline-block;border:1px dashed #999;padding:.07in;margin:.04in;vertical-align:top;overflow:hidden;background:#fff;color:#000;font-size:11px;line-height:1.15;box-sizing:border-box}
