@@ -106,6 +106,9 @@ function migrations(){
       if (!col_exists('item_lots','reminded_stage')) q("ALTER TABLE item_lots ADD COLUMN reminded_stage TINYINT NOT NULL DEFAULT 0");
       q("CREATE TABLE IF NOT EXISTS barcode_cache(code VARCHAR(40) NOT NULL PRIMARY KEY,found TINYINT(1) NOT NULL DEFAULT 0,name VARCHAR(200) NULL,brand VARCHAR(120) NULL,size VARCHAR(80) NULL,category VARCHAR(160) NULL,image VARCHAR(80) NULL,source VARCHAR(30) NULL,looked_up_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB");
     }],
+    18 => ['Two-factor login (authenticator app)', function(){
+      if (!col_exists('users','totp_secret')) q("ALTER TABLE users ADD COLUMN totp_secret VARCHAR(64) NULL, ADD COLUMN totp_enabled TINYINT(1) NOT NULL DEFAULT 0, ADD COLUMN totp_last INT NOT NULL DEFAULT 0, ADD COLUMN totp_recovery TEXT NULL");
+    }],
   ];
 }
 function run_upgrade(){

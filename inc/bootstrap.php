@@ -70,6 +70,7 @@ require __DIR__.'/reports.php';
 require __DIR__.'/trash.php';
 require __DIR__.'/backup.php';
 require __DIR__.'/lookup.php';
+require __DIR__.'/totp.php';
 try { foreach (q("SELECT k,v FROM settings")->fetchAll() as $r) $SETTINGS[$r['k']] = $r['v']; } catch (Exception $e) { $SETTINGS = []; }
 $db_outdated = db_version() < APP_DB_VERSION;
 $page = basename($_SERVER['SCRIPT_NAME']);
@@ -86,7 +87,7 @@ if (preg_match('/^[+-]\d\d:\d\d$/', $tzoff)) { try { $pdo->exec("SET time_zone =
 if (me() && !$db_outdated) {
   $fresh = q("SELECT * FROM users WHERE id=? AND active=1", [me()['id']])->fetch();
   if (!$fresh) { session_unset(); session_destroy(); session_start(); flash('Your account is no longer active.', 'danger'); }
-  else { unset($fresh['pass_hash']); $_SESSION['user'] = $fresh; }
+  else { unset($fresh['pass_hash'], $fresh['totp_secret'], $fresh['totp_recovery']); $_SESSION['user'] = $fresh; }
 }
 $timeout = (int)setting('session_timeout_min', 120);
 if (me()) {

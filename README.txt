@@ -4,7 +4,7 @@ Requires: PHP 7.4+ (PDO MySQL, mbstring; GD and exif recommended), MySQL/MariaDB
 NEW INSTALL
 1. Create an empty MySQL database + user in your host control panel.
 2. Upload everything in this folder to your web directory. Make the folder and uploads/ writable by PHP.
-3. Open /install.php. After install, DELETE install.php from the server.
+3. Open /install.php. It deletes itself when the install finishes (if the server blocks that, delete install.php by hand).
 
 UPGRADING FROM MILESTONE 1 OR 2
 1. Upload this zip's contents over your existing files (config.php is not in the zip and is not touched).
@@ -195,3 +195,8 @@ Backup and restore (Admin > Backup)
 Trash and undo (Manage > Trash and undo)
 - Delete on an item now moves it to the trash (admins). Restore it for 30 days (change in Settings); after that it is removed for good. "Delete forever" and "Empty trash" are there for admins.
 - Undo for stock changes: the latest add / use / count change on an item can be undone (own changes within 7 days, or any if admin) from the item's history or the Trash and undo page.
+
+AFTER 6c (not yet a numbered milestone) - security
+- Two-factor sign-in (My account > Two-factor sign-in): works with any authenticator app (Google/Microsoft Authenticator, Authy, 1Password). Setup shows a key and an "Open in authenticator app" link (no camera needed), then asks for the first code. 8 one-time recovery codes are shown once. Turning it off or making new codes needs your password plus a code. An administrator can reset a user who lost their phone (Admin > Users > Access > Two-factor sign-in > Reset). Passkey sign-in is unaffected. Open Admin > Upgrade once (database update 18).
+- install.php removes itself when the installation finishes.
+- Security fixes from the audit: empty CSRF token refused, PHP errors hidden from visitors, labels search fix.

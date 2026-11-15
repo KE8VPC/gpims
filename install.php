@@ -1,7 +1,7 @@
 <?php
 session_start();
 require __DIR__.'/inc/version.php';
-if (file_exists(__DIR__.'/config.php')) { exit('Already installed. Delete install.php from the server.'); }
+if (file_exists(__DIR__.'/config.php')) { @unlink(__FILE__); exit('Already installed. install.php is no longer needed'.(is_file(__FILE__)?'; delete it from the server.':' and has been removed.')); }
 $err = '';
 if ($_SERVER['REQUEST_METHOD']==='POST') {
   try {
@@ -14,6 +14,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $pdo->exec("INSERT INTO locations(name) VALUES('Main Storage')");
     $c = "<?php\nreturn ".var_export(['host'=>$_POST['host'],'name'=>$_POST['name'],'user'=>$_POST['user'],'pass'=>$_POST['pass'],'app_name'=>trim($_POST['app_name'])?:'GPIMS'], true).";\n";
     if (file_put_contents(__DIR__.'/config.php', $c) === false) throw new Exception('Could not write config.php - check folder permissions.');
+    @unlink(__FILE__);   // remove the installer so it cannot be run again
+    if (is_file(__FILE__)) { @session_start(); $_SESSION['flash'][] = ['warning', 'Installed. Please delete install.php from the server now; it could not remove itself.']; }
     header('Location: login.php'); exit;
   } catch (Exception $e) { $err = $e->getMessage(); }
 }
