@@ -1,5 +1,5 @@
 <?php $page = basename($_SERVER['SCRIPT_NAME']); $nav = function($f,$l,$min='viewer') use ($page){ if(level()<ROLES[$min]) return ''; return '<li class="nav-item"><a class="nav-link'.($page===$f?' active':'').'" href="'.$f.'">'.$l.'</a></li>'; }; ?>
-<!doctype html><html lang="en" data-bs-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="en" data-bs-theme="light"><head><meta charset="utf-8"><script>try{var t=localStorage.getItem('gpims-theme');if(t)document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?=h($title ?? 'GPIMS')?> · <?=h($cfg['app_name'])?></title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
