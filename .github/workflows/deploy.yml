@@ -1,0 +1,75 @@
+name: Deploy GPIMS to DreamHost
+
+# Every push to main uploads the changed files over SFTP, then calls deploy_hook.php on the live site,
+# which backs up the database, applies pending database updates and removes install.php.
+# Never uploaded or deleted: config.php, uploads/, backups/, install.php. Nothing on the server is ever deleted.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-gpims
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment: dreamhost
+    runs-on: ubuntu-latest
+    env:
+      READY: ${{ secrets.GPIMS_DEPLOY_KEY != '' && secrets.GPIMS_PATH != '' }}
+    steps:
+      - name: Not set up yet
+        if: env.READY != 'true'
+        run: echo "::notice::Automatic deployment is not set up yet (GPIMS_DEPLOY_KEY / GPIMS_PATH secrets missing in the 'dreamhost' environment). Skipping."
+
+      - uses: actions/checkout@v4
+        if: env.READY == 'true'
+
+      - name: Upload files over SFTP
+        if: env.READY == 'true'
+        env:
+          DH_HOST: ${{ secrets.DH_HOST }}
+          DH_USER: ${{ secrets.DH_USER }}
+          DH_PASSWORD: ${{ secrets.DH_PASSWORD }}
+          GPIMS_PATH: ${{ secrets.GPIMS_PATH }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+          for v in DH_HOST DH_USER DH_PASSWORD GPIMS_PATH; do
+            [ -n "${!v}" ] || { echo "::error::Secret $v is empty or missing"; exit 1; }
+          done
+          case "$DH_HOST" in *@*|*/*|*:*|*" "*) echo "::error::DH_HOST must be just the server name (no user@, sftp://, port or spaces)"; exit 1;; esac
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$DH_HOST" >> ~/.ssh/known_hosts || true
+          [ -s ~/.ssh/known_hosts ] || { echo "::error::Could not reach $DH_HOST:22"; exit 1; }
+          lftp -u "$DH_USER","$DH_PASSWORD" "sftp://$DH_HOST" <<LFTP
+          set sftp:connect-program "ssh -a -x -o StrictHostKeyChecking=yes"
+          set cmd:fail-exit yes
+          mirror -R --verbose --no-perms --overwrite \
+            -x '^\.git(/|$)' -x '^\.github(/|$)' -x '^config\.php$' -x '^install\.php$' \
+            -x '^uploads/' -x '^backups/' -x '\.zip$' \
+            ./ "$GPIMS_PATH"
+          bye
+          LFTP
+
+      - name: Run the database upgrade on the live site
+        if: env.READY == 'true'
+        env:
+          GPIMS_URL: ${{ secrets.GPIMS_URL }}
+          GPIMS_DEPLOY_KEY: ${{ secrets.GPIMS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          for v in GPIMS_URL GPIMS_DEPLOY_KEY; do
+            [ -n "${!v}" ] || { echo "::error::Secret $v is empty or missing"; exit 1; }
+          done
+          case "$GPIMS_URL" in https://*) ;; *) echo "::error::GPIMS_URL must start with https://"; exit 1;; esac
+          for i in 1 2 3; do
+            code=$(curl -sS -o resp.json -w '%{http_code}' -X POST -H "X-Deploy-Key: $GPIMS_DEPLOY_KEY" "${GPIMS_URL%/}/deploy_hook.php" || true)
+            echo "attempt $i: HTTP $code"; cat resp.json 2>/dev/null || true; echo
+            [ "$code" = "200" ] && exit 0
+            [ "$code" = "403" ] || [ "$code" = "429" ] && { echo "::error::The site refused the deploy key (HTTP $code). Check the GPIMS_DEPLOY_KEY secret."; exit 1; }
+            sleep 10
+          done
+          echo "::error::Files were uploaded but the upgrade step did not succeed. Open Admin > Upgrade on the site."; exit 1

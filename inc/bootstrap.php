@@ -76,7 +76,7 @@ require __DIR__.'/api.php';
 try { foreach (q("SELECT k,v FROM settings")->fetchAll() as $r) $SETTINGS[$r['k']] = $r['v']; } catch (Exception $e) { $SETTINGS = []; }
 $db_outdated = db_version() < APP_DB_VERSION;
 $page = basename($_SERVER['SCRIPT_NAME']);
-if ($db_outdated && !in_array($page, ['login.php','logout.php','upgrade.php','health.php'])) {
+if ($db_outdated && !in_array($page, ['login.php','logout.php','upgrade.php','health.php','deploy_hook.php'])) {
   if (defined('GP_API')) { http_response_code(503); header('Content-Type: application/json'); exit('{"error":{"code":"upgrade_required","message":"GPIMS needs its database upgrade first."}}'); }
   if (me() && me()['role'] === 'admin') redirect('upgrade.php');
   http_response_code(503);

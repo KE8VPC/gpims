@@ -213,3 +213,18 @@ NEW IN 6e - Fixed / Stationary items, and drag-and-drop category merge (open Adm
 - Fixed / Stationary is a new item type for things that must be accounted for but are never signed out: office furniture, fixtures, shelving. It has a count (12 chairs, or 1 for a single desk), a location and category, shows up in recounts, reports and maintenance, and has Add / Remove / Set count buttons. There is no check-out, use or reservation for it. Change any existing item to this type from its Edit page (equipment must be returned first). Import files can use the type word fixed, furniture, stationary or fixture.
 - Categories: drag one category onto another to MERGE them (items, custom fields, user access and same-name sub-categories combine) or MOVE it underneath. Handy after importing a sheet that created duplicate categories. The edit panel also has a "Merge or move into" list for touch screens.
 - API: items may now report type "fixed"; restock and adjust work on them (contract v1.5).
+
+AUTOMATIC DEPLOYMENT FROM GITHUB (optional, 6e)
+Every push to the main branch can update the live site with no uploads. The workflow in .github/workflows/deploy.yml uploads the files over SFTP (never config.php, uploads, backups or install.php, and it never deletes anything), then calls deploy_hook.php, which takes a database backup, applies pending database updates and removes install.php.
+One-time setup:
+ 1. Put this version on the site once by hand (upload and extract the zip, then Admin > Upgrade).
+ 2. Admin > Settings > "Automatic deployment (GitHub)" > Create deploy key. Copy the key (it is shown once).
+ 3. In the GitHub repo: Settings > Environments > New environment named "dreamhost". Add these secrets to it:
+      DH_HOST          the DreamHost server name only (no user@, no sftp://)
+      DH_USER          the SFTP/shell user
+      DH_PASSWORD      that user's password
+      GPIMS_PATH       the folder of GPIMS on the server, relative to the SFTP home, e.g. ke8vpc.net/gpims
+      GPIMS_URL        https://ke8vpc.net/gpims
+      GPIMS_DEPLOY_KEY the key from step 2
+ 4. Push to main (or run the workflow by hand from the Actions tab). The Actions log shows the upload and the upgrade result; Settings shows the last deploy.
+Until the secrets exist the workflow just prints "not set up yet" and does nothing. To pause automatic deployment, use "Switch off" in Settings.
