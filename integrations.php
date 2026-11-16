@@ -46,6 +46,11 @@ include 'inc/header.php'; ?>
 <button class="btn btn-sm btn-outline-secondary" name="action" value="rotate" data-confirm="Make a new key and revoke all current keys? Update the other system right after.">Rotate (new key, revoke old)</button>
 <button class="btn btn-sm btn-outline-<?=$i['active']?'warning':'success'?>" name="action" value="toggle"><?=$i['active']?'Switch off':'Switch on'?></button>
 <button class="btn btn-sm btn-outline-danger ms-auto" name="action" value="delete" data-confirm="Delete this integration and its keys?">Delete</button></form>
+<?php $rw = q("SELECT t.created_at,t.type,t.qty,t.balance,t.ref,t.by_name,t.undone_at,i.name item FROM transactions t JOIN items i ON i.id=t.item_id WHERE t.integration_id=? ORDER BY t.id DESC LIMIT 15", [$i['id']])->fetchAll(); $nw = (int)q("SELECT COUNT(*) FROM transactions WHERE integration_id=?", [$i['id']])->fetchColumn(); ?>
+<details class="mt-2"><summary class="small text-muted">Recent changes made by this integration (<?=$nw?> in total)</summary>
+<?php if (!$rw): ?><div class="small text-muted mt-1">Nothing written yet. Reads are not listed here.</div><?php else: ?>
+<div class="table-responsive"><table class="table table-sm small mb-0 mt-1"><thead><tr><th>When</th><th>Item</th><th>Change</th><th>Now</th><th>Ref</th><th>By</th></tr></thead><tbody>
+<?php foreach ($rw as $r): ?><tr class="<?=$r['undone_at']?'text-decoration-line-through text-muted':''?>"><td><?=h($r['created_at'])?></td><td><?=h($r['item'])?></td><td><?=h($r['type'])?> <?=h($r['qty']+0)?></td><td><?=$r['balance']===null?'':h($r['balance']+0)?></td><td><?=h($r['ref'] ?? '')?></td><td><?=h($r['by_name'] ?? '')?></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?></details>
 </div></div>
 <?php endforeach; ?>
 <div class="card" style="max-width:760px"><div class="card-header fw-bold">Add an integration</div><form method="post" class="card-body"><?=csrf_field()?><input type="hidden" name="action" value="create">
