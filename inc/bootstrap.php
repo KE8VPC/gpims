@@ -90,7 +90,13 @@ if (preg_match('/^[+-]\d\d:\d\d$/', $tzoff)) { try { $pdo->exec("SET time_zone =
 if (me() && !$db_outdated) {
   $fresh = q("SELECT * FROM users WHERE id=? AND active=1", [me()['id']])->fetch();
   if (!$fresh) { session_unset(); session_destroy(); session_start(); flash('Your account is no longer active.', 'danger'); }
-  else { unset($fresh['pass_hash'], $fresh['totp_secret'], $fresh['totp_recovery']); $_SESSION['user'] = $fresh; }
+  else {
+    // a password change or reset signs out every other session of that user (this session adopts the new fingerprint)
+    $pwfp = substr(hash('sha256', (string)$fresh['pass_hash']), 0, 20);
+    if (!isset($_SESSION['pwfp'])) $_SESSION['pwfp'] = $pwfp;
+    elseif (!hash_equals($_SESSION['pwfp'], $pwfp)) { session_unset(); session_destroy(); session_start(); flash('Your password was changed, so please sign in again.', 'warning'); $fresh = null; }
+    if ($fresh) { unset($fresh['pass_hash'], $fresh['totp_secret'], $fresh['totp_recovery']); $_SESSION['user'] = $fresh; }
+  }
 }
 $timeout = (int)setting('session_timeout_min', 120);
 if (me()) {

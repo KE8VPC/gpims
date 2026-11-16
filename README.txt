@@ -232,3 +232,4 @@ Until the secrets exist the workflow just prints "not set up yet" and does nothi
 ALSO IN 6e (after the first auto-deploy)
 - Bulk edit: Inventory > "Bulk edit" takes the items in your current filter, lets you untick any, then change their type, category and/or location in one go. Items with equipment still out keep their type; everything is logged in each item's history.
 - Item screen stock buttons (Add / Use / Remove / Set count) now lock the item while saving, so two people changing the same item at the same moment can no longer lose an update.
+- Security and safety: changing or resetting a password now signs that user out of all other sessions; the people badge lookup is limited to people who can check items out; the offline scan queue now locks items while saving and only accepts consumables and returnables.

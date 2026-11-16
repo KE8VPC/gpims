@@ -24,16 +24,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $it = q("SELECT i.* FROM items i WHERE (i.barcode IN ($ph) OR i.sku IN ($ph) OR i.serial IN ($ph) OR i.id=? OR EXISTS(SELECT 1 FROM item_codes c WHERE c.item_id=i.id AND c.code IN ($ph))) AND i.archived_at IS NULL AND ".scope_sql('i')." LIMIT 1", array_merge($cand, $cand, $cand, [$m], $cand))->fetch();
     if (!$it) { $r['msg'] = 'No item matches '.$code.'.'; unset($r); continue; }
     $r['name'] = $it['name'];
-    if ($it['type'] === 'asset') { $r['msg'] = 'Assets are checked out on the item page, not from the offline queue.'; unset($r); continue; }
+    if (!in_array($it['type'], ['consumable', 'returnable'], true)) { $r['msg'] = 'Only consumables and returnables can be counted from the offline queue.'; unset($r); continue; }
     if (($mode !== 'set' && $n <= 0) || $n < 0) { $r['msg'] = 'Invalid quantity.'; $r['drop'] = true; unset($r); continue; }
-    $new = $mode === 'add' ? $it['qty'] + $n : ($mode === 'use' ? $it['qty'] - $n : $n);
-    if ($new < 0) { $r['msg'] = 'Only '.fmt_q($it['qty']).' on hand now, so '.fmt_q($n).' cannot be used.'; unset($r); continue; }
-    q("UPDATE items SET qty=? WHERE id=?", [$new, $it['id']]);
+    global $pdo; $pdo->beginTransaction();
+    try { // lock the item so two scans of the same item at once cannot lose an update
+      $it['qty'] = q("SELECT qty FROM items WHERE id=? FOR UPDATE", [$it['id']])->fetchColumn();
+      $new = $mode === 'add' ? $it['qty'] + $n : ($mode === 'use' ? $it['qty'] - $n : $n);
+      if ($new < 0) { $pdo->rollBack(); $r['msg'] = 'Only '.fmt_q($it['qty']).' on hand now, so '.fmt_q($n).' cannot be used.'; unset($r); continue; }
+      q("UPDATE items SET qty=? WHERE id=?", [$new, $it['id']]);
+      $type = $mode === 'set' ? 'adjust' : ($mode === 'use' ? 'out' : 'in');
+      tx_add($it['id'], me()['id'], $type, $n, $new, 'Offline scan'.($at > 1e9 ? ' from '.date('M j g:ia', $at) : ''));
+      audit('offline_scan', 'id:'.$eid.' #'.$it['id'].' '.$mode.' '.fmt_q($n));
+      $pdo->commit();
+    } catch (Throwable $ex) { if ($pdo->inTransaction()) $pdo->rollBack(); error_log('GPIMS offline_sync: '.$ex->getMessage()); $r['msg'] = 'Could not save, will retry.'; unset($r); continue; }
     if ($it['min_qty'] > 0 && $new > $it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL", [$it['id']]);
     try { notify_stock($it, $it['qty'], $new); } catch (Throwable $ex) {}
-    $type = $mode === 'set' ? 'adjust' : ($mode === 'use' ? 'out' : 'in');
-    tx_add($it['id'], me()['id'], $type, $n, $new, 'Offline scan'.($at > 1e9 ? ' from '.date('M j g:ia', $at) : ''));
-    audit('offline_scan', 'id:'.$eid.' #'.$it['id'].' '.$mode.' '.fmt_q($n));
     $r['ok'] = true; $r['msg'] = fmt_q($it['qty']).' → '.fmt_q($new).($it['unit'] ? ' '.$it['unit'] : ''); unset($r);
   }
   js_out(['results' => $res]);

@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   $u=q("SELECT * FROM users WHERE id=?",[me()['id']])->fetch();
   if (!password_verify($_POST['current'],$u['pass_hash'])) flash('Current password is wrong.','danger');
   elseif (strlen($_POST['new'])<8) flash('New password must be 8+ characters.','danger');
-  else { q("UPDATE users SET pass_hash=? WHERE id=?",[password_hash($_POST['new'],PASSWORD_DEFAULT),$u['id']]); audit('password_change'); flash('Password changed.'); }
+  else { $nh=password_hash($_POST['new'],PASSWORD_DEFAULT); q("UPDATE users SET pass_hash=? WHERE id=?",[$nh,$u['id']]); $_SESSION['pwfp']=substr(hash('sha256',$nh),0,20); audit('password_change'); flash('Password changed.'); }
   redirect('account.php');
 }
 $tu = q("SELECT totp_enabled,totp_recovery FROM users WHERE id=?", [me()['id']])->fetch(); $tSetup = $_SESSION['totp_setup'] ?? ''; $tCodes = $_SESSION['totp_codes'] ?? []; unset($_SESSION['totp_codes']);
