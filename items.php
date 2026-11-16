@@ -83,7 +83,7 @@ $cats=cats_select(); $locs=array_map(fn($x)=>['id'=>$x['id'],'name'=>str_repeat(
 $sel=fn($a,$k)=>(($_GET[$k]??'')==$a)?'selected':'';
 include 'inc/header.php'; ?>
 <div class="d-flex justify-content-between mb-3"><h1 class="h3">Inventory</h1><div><a class="btn btn-outline-primary btn-sm" href="scan.php"><i class="bi bi-upc-scan"></i> Scan</a> 
-<a class="btn btn-outline-secondary" id="invCsv" href="?<?=h(http_build_query($_GET+['export'=>1]))?>"><i class="bi bi-download"></i> CSV</a>
+<?php if(can('items_edit')): ?><a class="btn btn-outline-secondary" href="bulk.php?<?=h(http_build_query(array_diff_key($_GET,['export'=>1,'ajax'=>1])))?>"><i class="bi bi-ui-checks"></i> Bulk edit</a><?php endif; ?><a class="btn btn-outline-secondary" id="invCsv" href="?<?=h(http_build_query($_GET+['export'=>1]))?>"><i class="bi bi-download"></i> CSV</a>
 <?php if(can('items_add')): ?><a class="btn btn-primary" href="item_edit.php"><i class="bi bi-plus-lg"></i> Add item</a><?php endif; ?></div></div>
 <form class="row g-2 mb-3" id="invForm" method="get"><input type="hidden" name="view" value="<?=h($_GET['view']??'')?>"><input type="hidden" name="pp" value="<?=$pp?>"><div class="col-md-3"><input class="form-control" name="s" value="<?=h($s)?>" placeholder="Search name, SKU, serial"></div>
 <div class="col-md-2"><select class="form-select" name="type"><option value="">All types</option><option value="consumable" <?=$sel('consumable','type')?>>Consumables</option><option value="returnable" <?=$sel('returnable','type')?>>Returnable (by qty)</option><option value="asset" <?=$sel('asset','type')?>>Assets</option><option value="fixed" <?=$sel('fixed','type')?>>Fixed / Stationary</option></select></div>

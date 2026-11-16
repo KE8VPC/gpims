@@ -228,3 +228,7 @@ One-time setup:
       GPIMS_DEPLOY_KEY the key from step 2
  4. Push to main (or run the workflow by hand from the Actions tab). The Actions log shows the upload and the upgrade result; Settings shows the last deploy.
 Until the secrets exist the workflow just prints "not set up yet" and does nothing. To pause automatic deployment, use "Switch off" in Settings.
+
+ALSO IN 6e (after the first auto-deploy)
+- Bulk edit: Inventory > "Bulk edit" takes the items in your current filter, lets you untick any, then change their type, category and/or location in one go. Items with equipment still out keep their type; everything is logged in each item's history.
+- Item screen stock buttons (Add / Use / Remove / Set count) now lock the item while saving, so two people changing the same item at the same moment can no longer lose an update.

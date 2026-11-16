@@ -12,10 +12,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   } elseif (in_array($a,['doc_add','doc_del']) && can('items_edit')) { docs_post($id,null);
   } elseif ($it['type']!=='asset' && in_array($a,['in','out','set']) && can('stock_move')) {
     $incId=($a==='out' && $it['type']==='consumable')?incident_id_valid($_POST['incident_id']??''):null; if($incId) $note=trim('For '.incident_name($incId).($note?' - '.$note:''));
-    $n=(float)$_POST['qty']; $new = $a==='in' ? $it['qty']+$n : ($a==='out' ? $it['qty']-$n : $n);
+    $n=(float)$_POST['qty'];
     if ($n<0 || ($a!=='set' && $n==0)) flash('Enter a valid quantity.','danger');
-    elseif ($new<0) flash('Not enough stock.','danger');
-    else { q("UPDATE items SET qty=? WHERE id=?",[$new,$id]); if ($it['min_qty']>0 && $new>$it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL",[$id]); try { notify_stock($it,$it['qty'],$new); } catch (Throwable $e) {} tx_add($id,$uid,$a==='set'?'adjust':$a,$n,$new,$note,$incId); audit("stock_$a","#$id $n"); flash('Stock updated.'); }
+    else { global $pdo; $pdo->beginTransaction(); $okq=false; $new=0;
+      try { // lock the row so two people changing the same item at once can never lose an update
+        $cur=q("SELECT qty FROM items WHERE id=? FOR UPDATE",[$id])->fetchColumn(); if ($cur!==false) { $it['qty']=$cur; $new = $a==='in' ? $cur+$n : ($a==='out' ? $cur-$n : $n);
+          if ($new>=0) { q("UPDATE items SET qty=? WHERE id=?",[$new,$id]); tx_add($id,$uid,$a==='set'?'adjust':$a,$n,$new,$note,$incId); $okq=true; } }
+        $pdo->commit();
+      } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); error_log('GPIMS stock: '.$e->getMessage()); $okq=false; }
+      if (!$okq) flash('Not enough stock.','danger');
+      else { if ($it['min_qty']>0 && $new>$it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL",[$id]); try { notify_stock($it,$it['qty'],$new); } catch (Throwable $e) {} audit("stock_$a","#$id $n"); flash('Stock updated.'); } }
   } elseif ($it['type']==='asset' && $a==='checkout' && $it['status']==='available' && can('checkout')) {
     [$b,$pid,$perr]=resolve_borrower(); if($perr){ flash($perr,'danger'); } else {
     $incId=incident_id_valid($_POST['incident_id']??''); q("INSERT INTO checkouts(item_id,borrower,person_id,user_id,due_at,note,incident_id) VALUES(?,?,?,?,?,?,?)",[$id,$b,$pid,$uid,($_POST['due_at']??'')?:null,$note,$incId]); q("UPDATE items SET status='checked_out' WHERE id=?",[$id]);
