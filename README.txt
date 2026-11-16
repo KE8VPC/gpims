@@ -1,4 +1,4 @@
-GPIMS - General Purpose Inventory Management System (Milestone 6d - Email, passkeys, check photos, reports (includes everything from 3a through 5c))
+GPIMS - General Purpose Inventory Management System (Milestone 6e - Email, passkeys, check photos, reports (includes everything from 3a through 5c))
 Requires: PHP 7.4+ (PDO MySQL, mbstring; GD and exif recommended), MySQL/MariaDB, Apache (for .htaccess). Use HTTPS so camera scanning works.
 
 NEW INSTALL
@@ -208,3 +208,8 @@ NEW IN 6d - Integration API for OpsHub and other systems (open Admin > Upgrade o
 - Write: items/{id}/use, restock, adjust (counts need the item's current "rev"), checkout, return, and transactions/{id}/undo. Every write needs an Idempotency-Key header; repeating it returns the first result and changes nothing. An incident reference ("ref") can be attached and is searchable.
 - Change feeds use commit-ordered sequence numbers so a connected system never misses or double-counts a change. A backup restore creates a new "data generation" so connected systems know to re-check.
 - Full contract: GPIMS-API-v1 document in the project / coordination folder (v1.4).
+
+NEW IN 6e - Fixed / Stationary items, and drag-and-drop category merge (open Admin > Upgrade once, database update 20)
+- Fixed / Stationary is a new item type for things that must be accounted for but are never signed out: office furniture, fixtures, shelving. It has a count (12 chairs, or 1 for a single desk), a location and category, shows up in recounts, reports and maintenance, and has Add / Remove / Set count buttons. There is no check-out, use or reservation for it. Change any existing item to this type from its Edit page (equipment must be returned first). Import files can use the type word fixed, furniture, stationary or fixture.
+- Categories: drag one category onto another to MERGE them (items, custom fields, user access and same-name sub-categories combine) or MOVE it underneath. Handy after importing a sheet that created duplicate categories. The edit panel also has a "Merge or move into" list for touch screens.
+- API: items may now report type "fixed"; restock and adjust work on them (contract v1.5).

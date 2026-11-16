@@ -127,6 +127,9 @@ function migrations(){
       foreach ([['seq','UNIQUE INDEX seq(seq)'],['ref','INDEX ref(ref)'],['item_seq','INDEX item_seq(item_id,seq)']] as [$nm,$def]) if (!q("SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='transactions' AND index_name=? LIMIT 1", [$nm])->fetchColumn()) q("ALTER TABLE transactions ADD $def");
       foreach (['installation_id', 'data_generation'] as $k) if (!q("SELECT 1 FROM settings WHERE k=?", [$k])->fetchColumn()) q("INSERT INTO settings(k,v) VALUES(?,?)", [$k, api_uuid()]);
     }],
+    20 => ['Fixed / stationary item type', function(){
+      q("ALTER TABLE items MODIFY COLUMN type ENUM('consumable','returnable','asset','fixed') NOT NULL DEFAULT 'consumable'");
+    }],
   ];
 }
 function run_upgrade(){

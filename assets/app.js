@@ -8,7 +8,7 @@
   var cat=document.getElementById('category_id');
   if(cat){var show=function(){document.querySelectorAll('.cf-wrap').forEach(function(w){var lin=(window.CAT_LINEAGE&&window.CAT_LINEAGE[cat.value])||[cat.value];var on=lin.map(String).indexOf(w.dataset.cat)>-1;w.style.display=on?'block':'none';w.querySelectorAll('input,select').forEach(function(i){i.disabled=!on;});});};cat.addEventListener('change',show);show();}
   var type=document.getElementById('type');
-  if(type){var tt=function(){document.querySelectorAll('.only-consumable').forEach(function(e){e.style.display=type.value!=='asset'?'':'none';});document.querySelectorAll('.only-asset').forEach(function(e){e.style.display=type.value==='asset'?'':'none';});};type.addEventListener('change',tt);tt();}
+  if(type){var tt=function(){document.querySelectorAll('.only-consumable').forEach(function(e){e.style.display=type.value!=='asset'?'':'none';});document.querySelectorAll('.only-asset').forEach(function(e){e.style.display=type.value==='asset'?'':'none';});document.querySelectorAll('.no-fixed').forEach(function(e){if(type.value==='fixed')e.style.display='none';});};type.addEventListener('change',tt);tt();}
   // quick table filter
   var f=document.getElementById('quickFilter');
   if(f)f.addEventListener('input',function(){var v=f.value.toLowerCase();document.querySelectorAll('#filterTable tbody tr').forEach(function(r){r.style.display=r.textContent.toLowerCase().indexOf(v)>-1?'':'none';});});

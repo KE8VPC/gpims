@@ -146,7 +146,7 @@ function imp_canon_gp($row, $guess, $n){
   $qty = str_replace(',', '', $g('Quantity')); $qty = is_numeric($qty) ? max(0, (float)$qty) : null;
   $mq = str_replace(',', '', $g('Alert At')); $r['min_qty'] = is_numeric($mq) ? max(0, (float)$mq) : 0;
   $uc = str_replace(['$', ','], '', $g('Unit Cost')); $r['unit_cost'] = is_numeric($uc) ? max(0, (float)$uc) : null;
-  $t = strtolower($g('Type')); $map = ['asset' => 'asset', 'equipment' => 'asset', 'serialized' => 'asset', 'returnable' => 'returnable', 'counted' => 'returnable', 'counted gear' => 'returnable', 'consumable' => 'consumable', 'supply' => 'consumable', 'supplies' => 'consumable'];
+  $t = strtolower($g('Type')); $map = ['asset' => 'asset', 'equipment' => 'asset', 'serialized' => 'asset', 'returnable' => 'returnable', 'counted' => 'returnable', 'counted gear' => 'returnable', 'consumable' => 'consumable', 'supply' => 'consumable', 'supplies' => 'consumable', 'fixed' => 'fixed', 'stationary' => 'fixed', 'furniture' => 'fixed', 'fixture' => 'fixed'];
   if (isset($map[$t])) $r['type'] = $map[$t];
   elseif (preg_match(IMP_CONSUMABLE_RE, $r['name'])) $r['type'] = 'consumable';
   elseif ($qty !== null && $qty > 1) $r['type'] = 'returnable'; else $r['type'] = 'asset';

@@ -3,7 +3,7 @@ $n = fn($sql)=>(int)q($sql)->fetchColumn();
 $stats = ['Items'=>$n("SELECT COUNT(*) FROM items WHERE archived_at IS NULL AND ".scope_sql('items')." AND status<>'retired'"),'Consumables'=>$n("SELECT COUNT(*) FROM items WHERE archived_at IS NULL AND ".scope_sql('items')." AND type='consumable' AND status<>'retired'"),'Assets'=>$n("SELECT COUNT(*) FROM items WHERE archived_at IS NULL AND ".scope_sql('items')." AND type='asset' AND status<>'retired'"),'Checked out'=>$n("SELECT COUNT(*) FROM checkouts c JOIN items i ON i.id=c.item_id WHERE c.in_at IS NULL AND ".scope_sql('i')."")];
 $low = q("SELECT * FROM items WHERE archived_at IS NULL AND ".scope_sql('items')." AND type='consumable' AND status<>'retired' AND min_qty>0 AND qty<=min_qty ORDER BY qty-min_qty LIMIT 6")->fetchAll();
 $allOut = field_rows(); $out = array_slice($allOut, 0, 8); $nOut = count($allOut);
-$nRet = $n("SELECT COUNT(*) FROM items WHERE archived_at IS NULL AND ".scope_sql('items')." AND type='returnable' AND status<>'retired'");
+$nFix = $n("SELECT COUNT(*) FROM items WHERE archived_at IS NULL AND ".scope_sql('items')." AND type='fixed' AND status<>'retired'"); $nRet = $n("SELECT COUNT(*) FROM items WHERE archived_at IS NULL AND ".scope_sql('items')." AND type='returnable' AND status<>'retired'");
 $upRes = array_slice(res_list(['status'=>'open']), 0, 5); $mnt = array_slice(maint_attention(), 0, 5); $nMnt = count(maint_attention());
 $recent = q("SELECT t.*,i.name,u.name uname FROM transactions t JOIN items i ON i.id=t.item_id LEFT JOIN users u ON u.id=t.user_id WHERE ".scope_sql('i')." ORDER BY t.id DESC LIMIT 10")->fetchAll();
 include 'inc/header.php'; $ac = attention_count();
@@ -14,7 +14,7 @@ $sections = (count($low) ? 1 : 0) + (count($out) ? 1 : 0) + (count($upRes) ? 1 :
 <a class="text-reset text-decoration-none" href="items.php"><strong class="text-body"><?=$stats['Items']?></strong> items</a>
 <a class="text-reset text-decoration-none" href="items.php?type=consumable"><strong class="text-body"><?=$stats['Consumables']?></strong> consumables</a>
 <a class="text-reset text-decoration-none" href="items.php?type=asset"><strong class="text-body"><?=$stats['Assets']?></strong> assets</a>
-<?php if($nRet): ?><a class="text-reset text-decoration-none" href="items.php?type=returnable"><strong class="text-body"><?=$nRet?></strong> returnable</a><?php endif; ?>
+<?php if($nFix): ?><a class="text-reset text-decoration-none" href="items.php?type=fixed"><strong class="text-body"><?=$nFix?></strong> fixed</a> &middot; <?php endif; ?><?php if($nRet): ?><a class="text-reset text-decoration-none" href="items.php?type=returnable"><strong class="text-body"><?=$nRet?></strong> returnable</a><?php endif; ?>
 <a class="text-reset text-decoration-none" href="field.php"><strong class="text-body"><?=$nOut?></strong> out now</a></div>
 <div class="card card-body py-2 mb-3"><div class="d-flex flex-wrap align-items-center gap-2">
 <button type="button" class="btn btn-primary" data-scan-go data-scan-mode="homemode"><i class="bi bi-upc-scan"></i> Scan</button>

@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   redirect("kit.php?id=$id");
 }
-$lines=kit_lines($id); $incs=incidents_open(); $itemOpts=can('items_edit')?q("SELECT id,name FROM items WHERE type<>'consumable' AND archived_at IS NULL AND ".scope_sql('i')." ORDER BY name LIMIT 1500")->fetchAll():[];
+$lines=kit_lines($id); $incs=incidents_open(); $itemOpts=can('items_edit')?q("SELECT id,name FROM items WHERE type IN ('returnable','asset') AND archived_at IS NULL AND ".scope_sql('i')." ORDER BY name LIMIT 1500")->fetchAll():[];
 $people=q("SELECT name FROM people WHERE active=1 ORDER BY name")->fetchAll();
 include 'inc/header.php'; ?>
 <a href="kits.php" class="small">&larr; Kits</a>

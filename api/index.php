@@ -74,7 +74,7 @@ if ($method === 'GET') {
   }
   if ($route === 'items') {
     $w = ['i.deleted_at IS NULL', 'i.id > ?']; $p = [max(0, (int)($_GET['after_id'] ?? 0))];
-    if (!empty($_GET['type']) && in_array($_GET['type'], ['consumable', 'returnable', 'asset'], true)) { $w[] = 'i.type=?'; $p[] = $_GET['type']; }
+    if (!empty($_GET['type']) && in_array($_GET['type'], ['consumable', 'returnable', 'asset', 'fixed'], true)) { $w[] = 'i.type=?'; $p[] = $_GET['type']; }
     if (trim($_GET['q'] ?? '') !== '') { $w[] = 'i.name LIKE ?'; $p[] = '%'.trim($_GET['q']).'%'; }
     api_send(200, api_page('SELECT i.* FROM items i WHERE '.implode(' AND ', $w).' ORDER BY i.id', $p, 'id', api_limit(100, 200), function($r){ return api_item($r); }));
   }
@@ -142,13 +142,13 @@ if (count($seg) === 3 && $seg[0] === 'items' && ctype_digit($seg[1])) {
   if ($act === 'use') $handler = function() use ($iid){ $it = the_item($iid, ['consumable']); check_rev($it); $n = body_qty('qty'); $new = round((float)$it['qty'] - $n, 2); if ($new < 0) throw new ApiStop(409, 'insufficient_stock', 'Only '.fmt_q($it['qty']).' on hand.', ['item' => api_item($it)]);
     q("UPDATE items SET qty=? WHERE id=?", [$new, $iid]); if ($it['min_qty'] > 0 && $new > $it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL", [$iid]);
     tx_add($iid, null, 'out', $n, $new, $GLOBALS['API_CTX']['note']); try { notify_stock($it, $it['qty'], $new); } catch (Throwable $e) {} audit('stock_out', "#$iid $n"); return [200, tx_result(0, $iid)]; };
-  elseif ($act === 'restock') $handler = function() use ($iid){ $it = the_item($iid, ['consumable', 'returnable']); check_rev($it); $n = body_qty('qty'); $new = round((float)$it['qty'] + $n, 2);
+  elseif ($act === 'restock') $handler = function() use ($iid){ $it = the_item($iid, ['consumable', 'returnable', 'fixed']); check_rev($it); $n = body_qty('qty'); $new = round((float)$it['qty'] + $n, 2);
     $exp = body_str('lot_expiry', 10); if ($exp !== null && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $exp) || !checkdate((int)substr($exp, 5, 2), (int)substr($exp, 8, 2), (int)substr($exp, 0, 4)))) throw new ApiStop(422, 'invalid_field', "'lot_expiry' must be a date like 2027-03-31.");
     $lotNo = body_str('lot_no', 60);
     q("UPDATE items SET qty=? WHERE id=?", [$new, $iid]); if ($it['min_qty'] > 0 && $new > $it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL", [$iid]);
     if ($exp !== null) { q("INSERT INTO item_lots(item_id,lot_no,qty,expires_on,note) VALUES(?,?,?,?,?)", [$iid, $lotNo, $n, $exp, 'Added by '.$GLOBALS['API_CTX']['name']]); api_change($iid, 'updated'); }
     tx_add($iid, null, 'in', $n, $new, $GLOBALS['API_CTX']['note']); try { notify_stock($it, $it['qty'], $new); } catch (Throwable $e) {} audit('stock_in', "#$iid $n"); return [200, tx_result(0, $iid)]; };
-  elseif ($act === 'adjust') $handler = function() use ($iid){ global $body; $it = the_item($iid, ['consumable', 'returnable']); if (!isset($body['expected_rev'])) throw new ApiStop(422, 'expected_rev_required', "'expected_rev' is required for a count."); check_rev($it); $n = body_qty('counted_qty', true);
+  elseif ($act === 'adjust') $handler = function() use ($iid){ global $body; $it = the_item($iid, ['consumable', 'returnable', 'fixed']); if (!isset($body['expected_rev'])) throw new ApiStop(422, 'expected_rev_required', "'expected_rev' is required for a count."); check_rev($it); $n = body_qty('counted_qty', true);
     q("UPDATE items SET qty=? WHERE id=?", [$n, $iid]); if ($it['min_qty'] > 0 && $n > $it['min_qty']) q("UPDATE alert_notes SET cleared_at=NOW() WHERE item_id=? AND cleared_at IS NULL", [$iid]);
     tx_add($iid, null, 'adjust', $n, $n, $GLOBALS['API_CTX']['note']); try { notify_stock($it, $it['qty'], $n); } catch (Throwable $e) {} audit('stock_set', "#$iid $n"); return [200, tx_result(0, $iid)]; };
   elseif ($act === 'checkout') $handler = function() use ($iid){ global $body; $it = the_item($iid, ['asset', 'returnable']); check_rev($it); $p = the_person(); $due = body_str('due', 10);

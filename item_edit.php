@@ -8,7 +8,7 @@ $fields=q("SELECT * FROM custom_fields ORDER BY category_id,sort,id")->fetchAll(
 if ($_SERVER['REQUEST_METHOD']==='POST') {
   $cat = $_POST['category_id']!=='' ? (int)$_POST['category_id'] : null; $loc = $_POST['location_id']!=='' ? (int)$_POST['location_id'] : null;
   $cd=[]; foreach($fields as $f) if (in_array((int)$f['category_id'], cat_lineage($cat), true) && isset($_POST['cf'][$f['id']])) $cd[$f['id']]=trim($_POST['cf'][$f['id']]);
-  $type = in_array($_POST['type'] ?? '', ['asset','returnable'], true) ? $_POST['type'] : 'consumable';
+  $type = in_array($_POST['type'] ?? '', ['asset','returnable','fixed'], true) ? $_POST['type'] : 'consumable';
   $codes=[]; $code_err=null; $dup=null; $seen=[]; $pri=isset($_POST['primary'])?(int)$_POST['primary']:-1;
   foreach ((array)($_POST['codes'] ?? []) as $ci=>$row) {
     $raw=trim($row['code'] ?? ''); if ($raw==='') continue;
@@ -62,15 +62,15 @@ include 'inc/header.php'; ?>
 <div class="col-md-8"><label class="form-label">Name *</label><input class="form-control" name="name" value="<?=$v('name')?>" required></div>
 <div class="col-md-4"><label class="form-label">SKU / Tag #</label><input class="form-control" name="sku" value="<?=$v('sku')?>"></div>
 
-<div class="col-md-4"><label class="form-label">Type</label><select class="form-select" name="type" id="type"><option value="consumable" <?=($item['type']??'')==='consumable'?'selected':''?>>Consumable (used up)</option><option value="returnable" <?=($item['type']??'')==='returnable'?'selected':''?>>Returnable by quantity (cones, flares, tarps)</option><option value="asset" <?=($item['type']??'')==='asset'?'selected':''?>>Asset / Equipment (checked out)</option></select></div>
+<div class="col-md-4"><label class="form-label">Type</label><select class="form-select" name="type" id="type"><option value="consumable" <?=($item['type']??'')==='consumable'?'selected':''?>>Consumable (used up)</option><option value="returnable" <?=($item['type']??'')==='returnable'?'selected':''?>>Returnable by quantity (cones, flares, tarps)</option><option value="asset" <?=($item['type']??'')==='asset'?'selected':''?>>Asset / Equipment (checked out)</option><option value="fixed" <?=($item['type']??'')==='fixed'?'selected':''?>>Fixed / Stationary (accounted for, not signed out: furniture, fixtures)</option></select></div>
 <div class="col-md-4"><label class="form-label">Category</label><select class="form-select" name="category_id" id="category_id"><option value="">—</option><?php foreach($cats as $c): ?><option value="<?=$c['id']?>" <?=($item['category_id']??'')==$c['id']?'selected':''?>><?=h($c['name'])?></option><?php endforeach; ?></select></div>
 <div class="col-md-4"><label class="form-label">Location</label><select class="form-select" name="location_id"><option value="">—</option><?php foreach($locs as $c): ?><option value="<?=$c['id']?>" <?=($item['location_id']??'')==$c['id']?'selected':''?>><?=h($c['name'])?></option><?php endforeach; ?></select></div>
 <?php if(!$item): ?><div class="col-md-4 only-consumable"><label class="form-label">Starting quantity</label><input class="form-control" type="number" step="any" name="qty" value="0"></div><?php endif; ?>
 <div class="col-md-4 only-consumable"><label class="form-label">Unit</label><input class="form-control" name="unit" value="<?=$v('unit')?>" placeholder="each, box, pack…"></div>
 <div class="col-md-4 only-consumable"><label class="form-label">Low-stock alert at</label><input class="form-control" type="number" step="any" name="min_qty" value="<?=$v('min_qty','0')?>"></div>
-<div class="col-md-4 only-consumable"><label class="form-label">Par level (target stock)</label><input class="form-control" type="number" step="any" name="par_qty" value="<?=$v('par_qty')?>"></div>
-<div class="col-md-4 only-consumable"><label class="form-label">Reorder quantity</label><input class="form-control" type="number" step="any" name="reorder_qty" value="<?=$v('reorder_qty')?>"></div>
-<?php if(!$item): ?><div class="col-md-4 only-consumable"><label class="form-label">Expiry date (optional)</label><input class="form-control" type="date" name="exp_date" value="<?=$v('exp_date')?>"><div class="form-text">You can add more dates and lots on the item later.</div></div><?php endif; ?>
+<div class="col-md-4 only-consumable no-fixed"><label class="form-label">Par level (target stock)</label><input class="form-control" type="number" step="any" name="par_qty" value="<?=$v('par_qty')?>"></div>
+<div class="col-md-4 only-consumable no-fixed"><label class="form-label">Reorder quantity</label><input class="form-control" type="number" step="any" name="reorder_qty" value="<?=$v('reorder_qty')?>"></div>
+<?php if(!$item): ?><div class="col-md-4 only-consumable no-fixed"><label class="form-label">Expiry date (optional)</label><input class="form-control" type="date" name="exp_date" value="<?=$v('exp_date')?>"><div class="form-text">You can add more dates and lots on the item later.</div></div><?php endif; ?>
 <div class="col-md-4"><label class="form-label">Unit cost</label><input class="form-control" type="number" step="0.01" name="unit_cost" value="<?=$v('unit_cost')?>"></div>
 <div class="col-md-6 only-asset"><label class="form-label">Serial number</label><input class="form-control" name="serial" value="<?=$v('serial')?>"></div>
 <div class="col-12"><label class="form-label">Description / notes</label><textarea class="form-control" name="description" rows="3"><?=$v('description')?></textarea></div>
