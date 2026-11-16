@@ -2,6 +2,7 @@
 // Report definitions shared by the Reports page, CSV download and scheduled emails.
 const REPORTS = [
   'inventory'   => ['Inventory list', 'Every item with category, location, quantity and status', ['cat', 'loc']],
+  'fixedreg'    => ['Fixed item register', 'Furniture and fixtures by location with counts, for walking the building (blank column to tick off)', ['cat', 'loc']],
   'valuation'   => ['Inventory value', 'Units and dollar value by category', ['cat', 'loc']],
   'reorder'     => ['Reorder list', 'Items at or below their alert level, with suggested order and vendor', ['cat', 'loc']],
   'expiring'    => ['Expiring items', 'Lots that expired or expire soon', ['days', 'cat', 'loc']],
@@ -16,7 +17,7 @@ const REPORTS = [
   'problems'    => ['Problem lines', 'Check lines that failed most often in a date range', ['range']],
   'recounts'    => ['Recount differences', 'Counts that differed from the system', ['range']],
 ];
-const REPORT_GROUPS = ['Stock' => ['inventory', 'valuation', 'reorder', 'expiring', 'activity', 'recounts'], 'Loans & planning' => ['loans', 'person', 'reservations', 'maintenance', 'maintlog'], 'Checks' => ['checks', 'compliance', 'problems']];
+const REPORT_GROUPS = ['Stock' => ['inventory', 'fixedreg', 'valuation', 'reorder', 'expiring', 'activity', 'recounts'], 'Loans & planning' => ['loans', 'person', 'reservations', 'maintenance', 'maintlog'], 'Checks' => ['checks', 'compliance', 'problems']];
 
 function report_params($src){
   $d = fn($k, $def) => preg_match('/^\d{4}-\d{2}-\d{2}$/', $src[$k] ?? '') ? $src[$k] : $def;
@@ -41,6 +42,10 @@ function report_build($r, $P){
     $head = ['Item', 'Type', 'Category', 'Location', 'On hand', 'Unit', 'Status', 'Serial', 'Tag / SKU'];
     foreach (q("SELECT i.* FROM items i WHERE $W ORDER BY i.name")->fetchAll() as $x) $rows[] = [$x['name'], $x['type'], cat_path($x['category_id']), loc_path_name($x['location_id']), $x['type'] === 'asset' ? 1 : fmt_q($x['qty']), $x['type'] === 'asset' ? '' : $x['unit'], $x['status'], $x['serial'], $x['sku']];
     break;
+  case 'fixedreg':
+    $head = ['Location', 'Item', 'Category', 'Count', 'Tag / SKU', 'Serial', 'Status', 'Seen'];
+    foreach (q("SELECT i.* FROM items i WHERE $W AND i.type='fixed' AND i.status<>'retired' ORDER BY i.name")->fetchAll() as $x) $rows[] = [loc_path_name($x['location_id']), $x['name'], cat_path($x['category_id']), fmt_q($x['qty']), $x['sku'], $x['serial'], $x['status'], '[  ]'];
+    usort($rows, fn($a, $b) => strcasecmp($a[0].'|'.$a[1], $b[0].'|'.$b[1])); if (!$rows) $note = 'No Fixed / Stationary items yet. Change furniture items to that type from Inventory > Bulk edit.'; break;
   case 'valuation':
     $head = ['Category', 'Items', 'Units', 'Value'];
     $agg = []; foreach (q("SELECT i.category_id,COUNT(*) n,SUM(CASE WHEN i.type='asset' THEN 1 ELSE i.qty END) units,SUM(CASE WHEN i.type='asset' THEN 1 ELSE i.qty END*COALESCE(i.unit_cost,0)) val FROM items i WHERE $W AND i.status<>'retired' GROUP BY i.category_id")->fetchAll() as $x) $agg[] = [cat_path($x['category_id']) ?: '(none)', $x['n'], (float)$x['units'], (float)$x['val']];
