@@ -1,4 +1,4 @@
-GPIMS - General Purpose Inventory Management System (Milestone 6e - Email, passkeys, check photos, reports (includes everything from 3a through 5c))
+GPIMS - General Purpose Inventory Management System (Version 1.0.0 - first stable release; includes everything from 3a through 6e)
 Requires: PHP 7.4+ (PDO MySQL, mbstring; GD and exif recommended), MySQL/MariaDB, Apache (for .htaccess). Use HTTPS so camera scanning works.
 
 NEW INSTALL
@@ -233,3 +233,12 @@ ALSO IN 6e (after the first auto-deploy)
 - Bulk edit: Inventory > "Bulk edit" takes the items in your current filter, lets you untick any, then change their type, category and/or location in one go. Items with equipment still out keep their type; everything is logged in each item's history.
 - Item screen stock buttons (Add / Use / Remove / Set count) now lock the item while saving, so two people changing the same item at the same moment can no longer lose an update.
 - Security and safety: changing or resetting a password now signs that user out of all other sessions; the people badge lookup is limited to people who can check items out; the offline scan queue now locks items while saving and only accepts consumables and returnables.
+
+
+VERSION 1.0.0 - UPDATES
+- Version numbers are now x.y.z. There is no beta or preview label anywhere in the program. If your header shows "GPIMS-Beta",
+  that is your own Site name: change it in Admin > Settings.
+- Admin > Updates checks GitHub (default repository KE8VPC/gpims) for a newer release. "Back up and install" saves a database
+  backup, replaces the program files from the release zip and applies database changes. config.php, uploads/ and backups/ are never touched
+  and no file is ever deleted. Needs the PHP zip extension. If you use the GitHub auto-deploy you do not need this page.
+- To publish a release: create a GitHub release with a tag such as v1.0.1 (attach a gpims zip, or the source zip is used).

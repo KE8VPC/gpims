@@ -9,7 +9,7 @@
 <?php
 $isV = me() && me()['role']==='vendor';
 $mg = []; foreach ([['categories.php','Categories','bi-tags','categories_manage'],['locations.php','Locations','bi-geo-alt','locations_manage'],['people.php','People','bi-person-badge','people_manage'],['vendors.php','Vendors','bi-truck','vendors_manage'],['labels.php','Labels','bi-qr-code','labels_print'],['incidents.php','Events / incidents','bi-lightning-charge','checkout'],['reservations.php','Reservations','bi-calendar-event','checkout'],['maintenance.php','Maintenance','bi-wrench-adjustable','maintenance_manage'],['kits.php','Kits','bi-bag','checkout'],['recount.php','Recount','bi-clipboard-check','stock_move'],['trash.php','Trash and undo','bi-trash','stock_move'],['offline_sync.php','Offline scans','bi-cloud-upload','stock_move'],['reports.php','Reports','bi-graph-up','reports_view']] as $m) if (me() && can($m[3])) $mg[] = $m;
-$mgPages = array_column($mg, 0); $adPages = ['users.php','user_access.php','audit.php','email_log.php','settings.php','health.php','upgrade.php','backup.php','import.php','integrations.php'];
+$mgPages = array_column($mg, 0); $adPages = ['users.php','user_access.php','audit.php','email_log.php','settings.php','health.php','upgrade.php','update.php','backup.php','import.php','integrations.php'];
 $ac = (!$isV && level()>=ROLES['viewer']) ? attention_count() : 0; $fc = (!$isV && level()>=ROLES['viewer']) ? field_count() : 0;
 $lnk = fn($f,$l,$icon,$extra='') => '<li class="nav-item"><a class="nav-link py-1'.($page===$f?' active':'').'" href="'.$f.'"><i class="bi '.$icon.'"></i> '.$l.$extra.'</a></li>';
 ?>
@@ -36,6 +36,7 @@ endif; ?>
 <li><a class="dropdown-item" href="integrations.php"><i class="bi bi-plug"></i> Integrations (API)</a></li>
 <li><hr class="dropdown-divider"></li>
 <li><a class="dropdown-item" href="health.php"><i class="bi bi-heart-pulse"></i> System health</a></li>
+<li><a class="dropdown-item" href="update.php"><i class="bi bi-cloud-arrow-down"></i> Updates</a></li>
 <li><a class="dropdown-item" href="upgrade.php"><i class="bi bi-arrow-up-circle"></i> Upgrade</a></li></ul></li><?php endif; ?>
 </ul><div class="d-flex align-items-center gap-1">
 <button class="btn btn-sm btn-outline-secondary" id="themeBtn" title="Dark mode"><i class="bi bi-moon-stars"></i></button>

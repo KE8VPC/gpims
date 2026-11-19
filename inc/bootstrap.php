@@ -70,6 +70,7 @@ require __DIR__.'/digest.php';
 require __DIR__.'/reports.php';
 require __DIR__.'/trash.php';
 require __DIR__.'/backup.php';
+require __DIR__.'/update.php';
 require __DIR__.'/lookup.php';
 require __DIR__.'/totp.php';
 require __DIR__.'/api.php';
