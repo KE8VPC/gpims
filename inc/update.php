@@ -2,11 +2,11 @@
 const UPD_KEEP = ['config.php', 'install.php', 'uploads/', 'backups/', '.git/', '.github/'];
 function upd_repo(){ $r = trim((string)setting('update_repo', 'KE8VPC/gpims')); return preg_match('#^[A-Za-z0-9_.-]{1,60}/[A-Za-z0-9_.-]{1,80}$#', $r) ? $r : 'KE8VPC/gpims'; }
 function upd_api_base(){ return defined('UPD_API_BASE') ? UPD_API_BASE : 'https://api.github.com'; }
-function upd_http($url, $toFile = null){
+function upd_http($url, $toFile = null, $timeout = 120){
   if (!preg_match('#^https://(api\.github\.com|codeload\.github\.com|github\.com)/#', $url) && !(defined('UPD_API_BASE') && strpos($url, UPD_API_BASE) === 0)) throw new Exception('Update address not allowed.');
-  if (!function_exists('curl_init')) { $c = stream_context_create(['http' => ['header' => "User-Agent: GPIMS-updater\r\n", 'timeout' => 60]]); $d = @file_get_contents($url, false, $c); if ($d === false) throw new Exception('Could not reach GitHub.'); if ($toFile) { file_put_contents($toFile, $d); return ''; } return $d; }
+  if (!function_exists('curl_init')) { $c = stream_context_create(['http' => ['header' => "User-Agent: GPIMS-updater\r\n", 'timeout' => min(60, $timeout)]]); $d = @file_get_contents($url, false, $c); if ($d === false) throw new Exception('Could not reach GitHub.'); if ($toFile) { file_put_contents($toFile, $d); return ''; } return $d; }
   $ch = curl_init($url); $fh = $toFile ? fopen($toFile, 'wb') : null;
-  curl_setopt_array($ch, [CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5, CURLOPT_TIMEOUT => 120, CURLOPT_USERAGENT => 'GPIMS-updater', CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json'], CURLOPT_RETURNTRANSFER => !$fh]);
+  curl_setopt_array($ch, [CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 5, CURLOPT_TIMEOUT => $timeout, CURLOPT_USERAGENT => 'GPIMS-updater', CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json'], CURLOPT_RETURNTRANSFER => !$fh]);
   if (!defined('UPD_API_BASE')) curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
   if ($fh) curl_setopt($ch, CURLOPT_FILE, $fh);
   $r = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); curl_close($ch); if ($fh) fclose($fh);
@@ -15,12 +15,14 @@ function upd_http($url, $toFile = null){
 }
 function upd_norm($t){ return ltrim(trim((string)$t), 'vV'); }
 function upd_newer($remote, $local){ $r = upd_norm($remote); $l = upd_norm($local); if (!preg_match('/^\d+\.\d+\.\d+$/', $l)) return true; return version_compare($r, $l, '>'); }
-function upd_check(){
-  $j = json_decode(upd_http(upd_api_base().'/repos/'.upd_repo().'/releases/latest'), true);
+function upd_type($notes){ return preg_match('/^\s*(release\s*)?type\s*:\s*minor\b/im', (string)$notes) ? 'minor' : 'major'; }
+function upd_check($timeout = 120){
+  $j = json_decode(upd_http(upd_api_base().'/repos/'.upd_repo().'/releases/latest', null, $timeout), true);
   if (!is_array($j) || empty($j['tag_name'])) throw new Exception('No release found for '.upd_repo().'.');
   $asset = ''; foreach ($j['assets'] ?? [] as $a) if (preg_match('/\.zip$/i', $a['name'] ?? '') && !empty($a['browser_download_url'])) { $asset = $a['browser_download_url']; break; }
   $info = ['tag' => $j['tag_name'], 'name' => $j['name'] ?? $j['tag_name'], 'notes' => (string)($j['body'] ?? ''), 'zip' => $asset ?: ($j['zipball_url'] ?? ''), 'newer' => upd_newer($j['tag_name'], APP_VERSION), 'checked' => date('Y-m-d H:i')];
-  set_setting('update_last_check', json_encode(['tag' => $info['tag'], 'newer' => $info['newer'], 'at' => $info['checked']])); return $info;
+  $info['type'] = upd_type($info['notes']);
+  set_setting('update_last_check', json_encode(['tag' => $info['tag'], 'name' => $info['name'], 'newer' => $info['newer'], 'type' => $info['type'], 'at' => $info['checked'], 'notes' => mb_substr($info['notes'], 0, 600)])); return $info;
 }
 function upd_skip($rel){ foreach (UPD_KEEP as $k) { if (substr($k, -1) === '/' ? strpos($rel.'/', $k) === 0 || strpos($rel, $k) === 0 : $rel === $k) return true; } return (bool)preg_match('/\.zip$/i', $rel); }
 // Installs the zip at $zipPath. Returns list of messages. Never deletes files; only adds/replaces.
@@ -52,3 +54,22 @@ function upd_install($zipPath){
   $msgs[] = $written.' files updated, '.$skipped.' protected or skipped (config, uploads, backups are never touched).';
   return $msgs;
 }
+
+// Quiet once-a-day check, called from the dashboard for admins. Never throws; a failure is retried after 6 hours.
+function upd_auto_check(){
+  if (setting('update_notice', 'all') === 'off') return;
+  $due = (string)setting('update_next_check', ''); if ($due !== '' && $due > date('Y-m-d H:i:s')) return;
+  try { upd_check(4); set_setting('update_next_check', date('Y-m-d H:i:s', time() + 86400)); }
+  catch (Throwable $e) { set_setting('update_next_check', date('Y-m-d H:i:s', time() + 21600)); }
+}
+// The cached result if it should be announced to this admin, else null. Choice: all, major, off.
+function upd_notice(){
+  $mode = setting('update_notice', 'all'); if ($mode === 'off') return null;
+  $l = json_decode((string)setting('update_last_check', ''), true); if (!is_array($l) || empty($l['newer']) || empty($l['tag'])) return null;
+  if (!upd_newer($l['tag'], APP_VERSION)) return null;
+  if ($mode === 'major' && ($l['type'] ?? 'major') !== 'major') return null;
+  if (setting('update_dismissed', '') === $l['tag']) return null;
+  return $l;
+}
+// install.php is only needed for the first install; remove it once the app is running.
+function upd_remove_installer(){ $f = realpath(__DIR__.'/..').'/install.php'; return is_file($f) ? @unlink($f) : false; }

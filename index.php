@@ -6,6 +6,7 @@ $allOut = field_rows(); $out = array_slice($allOut, 0, 8); $nOut = count($allOut
 $nFix = $n("SELECT COUNT(*) FROM items WHERE archived_at IS NULL AND ".scope_sql('items')." AND type='fixed' AND status<>'retired'"); $nRet = $n("SELECT COUNT(*) FROM items WHERE archived_at IS NULL AND ".scope_sql('items')." AND type='returnable' AND status<>'retired'");
 $upRes = array_slice(res_list(['status'=>'open']), 0, 5); $mnt = array_slice(maint_attention(), 0, 5); $nMnt = count(maint_attention());
 $recent = q("SELECT t.*,i.name,u.name uname FROM transactions t JOIN items i ON i.id=t.item_id LEFT JOIN users u ON u.id=t.user_id WHERE ".scope_sql('i')." ORDER BY t.id DESC LIMIT 10")->fetchAll();
+if (level()>=ROLES['admin']) upd_auto_check();
 include 'inc/header.php'; $ac = attention_count();
 $sections = (count($low) ? 1 : 0) + (count($out) ? 1 : 0) + (count($upRes) ? 1 : 0) + (count($mnt) ? 1 : 0); $col = $sections >= 2 ? 'col-lg-6' : 'col-12'; ?>
 <?php if(!function_exists('passkeys_ok')) require_once 'inc/webauthn.php'; if(passkeys_ok() && !q("SELECT 1 FROM passkeys WHERE user_id=? LIMIT 1",[me()['id']])->fetchColumn()): ?><div class="alert alert-info d-none align-items-center gap-2 py-2 small" id="pkNudge"><i class="bi bi-fingerprint fs-5"></i><div class="flex-grow-1">Sign in faster with your fingerprint, face or screen lock. <a href="account.php">Add a passkey</a></div><button type="button" class="btn-close" aria-label="Dismiss" id="pkNudgeX"></button></div>

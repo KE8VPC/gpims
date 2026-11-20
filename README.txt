@@ -242,3 +242,8 @@ VERSION 1.0.0 - UPDATES
   backup, replaces the program files from the release zip and applies database changes. config.php, uploads/ and backups/ are never touched
   and no file is ever deleted. Needs the PHP zip extension. If you use the GitHub auto-deploy you do not need this page.
 - To publish a release: create a GitHub release with a tag such as v1.0.1 (attach a gpims zip, or the source zip is used).
+
+UPDATE NOTICES (1.0.0)
+- Admins see a blue "Update available" bar when GitHub has a newer release. The dashboard checks at most once a day (quietly; if GitHub cannot be reached it tries again in 6 hours). Nothing installs without your click on Admin > Updates.
+- Admin > Updates > "Show an update notice": every release, major releases only, or never. A release is minor (cosmetic, typos) when its release notes contain a line "Type: minor"; anything else is major. "Not now" hides the bar for that release only.
+- After an update through Admin > Updates, install.php is removed automatically if it is still there.
